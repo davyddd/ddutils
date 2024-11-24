@@ -1,0 +1,11 @@
+version: "3.8"
+
+services:
+    ddutils:
+        build:
+            context: ./
+            dockerfile: ./Dockerfile
+            args:
+                PYTHONBREAKPOINT: import ipdb;ipdb.set_trace
+        volumes:
+            - .:/src
