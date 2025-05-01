@@ -1,3 +1,4 @@
+from datetime import timedelta
 from typing import Protocol
 
 
@@ -16,3 +17,7 @@ def convert_to_repr(obj: ClassInstanceWithDict) -> str:
 
     attrs = ', '.join(f'{key}={value!r}' for key, value in obj.__dict__.items() if not key.startswith('_'))
     return f'{class_name}({attrs})'
+
+
+def convert_timedelta_to_milliseconds(delta: timedelta) -> int:
+    return int(delta.total_seconds() * 1000)

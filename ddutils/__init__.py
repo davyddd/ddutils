@@ -8,4 +8,6 @@ __all__ = (
     'function_helpers',
     'safe_decorators',
     'sequence_helpers',
+    'object_getter',
+    'scoped_registry',
 )
