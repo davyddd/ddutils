@@ -1,7 +1,7 @@
 [tool.poetry]
 name = "ddutils"
 description = "Domain Driven Utils Library"
-version = "0.0.3"
+version = "0.1.0"
 authors = ["davyddd"]
 license = "MIT"
 repository = "https://github.com/davyddd/ddutils"
