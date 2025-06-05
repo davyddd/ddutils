@@ -1,4 +1,4 @@
-import unittest
+from unittest import TestCase
 
 from ddutils.class_helpers import classproperty
 
@@ -12,7 +12,7 @@ class TestClass:
         return cls._value
 
 
-class TestClassProperty(unittest.TestCase):
+class TestClassProperty(TestCase):
     def test_basic_functionality(self):
         # Act & Assert
         self.assertEqual(TestClass.value, 'test_value')
