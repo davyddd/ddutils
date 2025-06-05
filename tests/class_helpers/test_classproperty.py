@@ -1,4 +1,5 @@
 import unittest
+
 from ddutils.class_helpers import classproperty
 
 
@@ -6,7 +7,7 @@ class TestClass:
     _value = 'test_value'
 
     @classproperty
-    def value(cls):
+    def value(cls) -> str:
         """This is a test docstring"""
         return cls._value
 

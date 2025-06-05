@@ -1,5 +1,5 @@
 import inspect
-from typing import Any, Callable, Generic, Optional, Type, TypeVar
+from typing import Any, Callable, Optional, Type, TypeVar
 
 _T = TypeVar('_T', bound=Any)
 
@@ -24,7 +24,7 @@ def get_origin_class_of_method(cls: Any, method_name: str) -> Optional[Type]:
     return None
 
 
-class classproperty(Generic[_T]):  # noqa: N801
+class classproperty:  # noqa: N801
     """
     A descriptor that defines a read-only property at the class level.
 
@@ -41,7 +41,7 @@ class classproperty(Generic[_T]):  # noqa: N801
         name = MyClass.class_name
     """
 
-    def __init__(self, fget: Callable[[Type[_T]], Any]) -> None:
+    def __init__(self, fget: Callable[..., Any]) -> None:
         """
         Initialize the classproperty with a class-level getter function.
 
@@ -52,7 +52,7 @@ class classproperty(Generic[_T]):  # noqa: N801
         self.__doc__ = fget.__doc__
         self.__name__ = fget.__name__
 
-    def __get__(self, instance: Any, owner: Type[_T]) -> Any:
+    def __get__(self, instance: Any, owner: Type[Any]) -> Any:
         """
         Retrieve the property value using the descriptor protocol.
 
