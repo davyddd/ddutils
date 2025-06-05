@@ -1,15 +1,11 @@
 import inspect
-from typing import Any, Awaitable, Callable, Dict, Generic, Hashable, TypeVar, Union
+from typing import Any, Awaitable, Callable, Dict, Generic, Hashable, Optional, TypeVar, Union
 
 _T = TypeVar('_T', bound=Any)
 _CreateFuncType = Union[Callable[..., _T], Callable[..., Awaitable[_T]]]
 _ScopeType = Hashable
 _ScopeFuncType = Callable[[], _ScopeType]
 _RegistryType = Dict[_ScopeType, _T]
-
-# A method must not have any attributes.
-# The count is shown as 1 because the method’s `__annotations__` always includes the `return` type.
-ALLOWED_AMOUNT_METHOD_ATTRIBUTES = 1
 
 
 class ScopedRegistry(Generic[_T]):
@@ -18,9 +14,9 @@ class ScopedRegistry(Generic[_T]):
     create_func: _CreateFuncType
     scope_func: _ScopeFuncType
     registry: _RegistryType
-    destructor_method_name: str | None
+    destructor_method_name: Optional[str]
 
-    def __init__(self, create_func: _CreateFuncType, scope_func: _ScopeFuncType, destructor_method_name: str | None = None):
+    def __init__(self, create_func: _CreateFuncType, scope_func: _ScopeFuncType, destructor_method_name: Optional[str] = None):
         self.create_func = create_func
         self.scope_func = scope_func
         self.registry = {}
@@ -41,7 +37,7 @@ class ScopedRegistry(Generic[_T]):
 
         return self.registry[key]
 
-    def get(self) -> _T | None:
+    def get(self) -> Optional[_T]:
         try:
             key = self.scope_func()
             return self.registry[key]
@@ -61,7 +57,7 @@ class ScopedRegistry(Generic[_T]):
 
                 if isinstance(self.destructor_method_name, str):
                     destructor_method = getattr(instance, self.destructor_method_name, None)
-                    if destructor_method and len(destructor_method.__annotations__) == ALLOWED_AMOUNT_METHOD_ATTRIBUTES:
+                    if destructor_method:
                         result: Any = destructor_method()
                         if inspect.isawaitable(result):
                             await result
