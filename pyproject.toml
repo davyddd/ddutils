@@ -10,7 +10,7 @@ keywords = ["python", "ddutils"]
 packages = [{include = "ddutils"}]
 
 [tool.poetry.dependencies]
-python = ">=3.8,<3.15"
+python = ">=3.8,<3.13"
 
 [tool.poetry.group.dev.dependencies]
 ipdb = "0.13.9"
