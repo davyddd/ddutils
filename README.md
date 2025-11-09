@@ -288,6 +288,7 @@ Imports and returns an object by its full dotted path (e.g. 'json.loads').
 ```python
 from ddutils.object_getter import get_object_by_path
 
+
 json_loads = get_object_by_path('json.loads')
 ```
 
