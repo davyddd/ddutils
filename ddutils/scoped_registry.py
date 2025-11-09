@@ -1,5 +1,6 @@
 import inspect
-from typing import Any, Awaitable, Callable, Dict, Generic, Hashable, Optional, TypeVar, Union
+from collections.abc import Awaitable, Hashable
+from typing import Any, Callable, Dict, Generic, Optional, TypeVar, Union
 
 _T = TypeVar('_T', bound=Any)
 _CreateFuncType = Union[Callable[..., _T], Callable[..., Awaitable[_T]]]

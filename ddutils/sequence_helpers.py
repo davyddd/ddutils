@@ -1,4 +1,5 @@
-from typing import Any, Sequence
+from collections.abc import Sequence
+from typing import Any
 
 
 def get_safe_element(seq: Sequence[Any], index: int) -> Any:

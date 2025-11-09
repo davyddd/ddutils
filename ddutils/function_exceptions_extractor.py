@@ -2,8 +2,9 @@ import ast
 import builtins
 import inspect
 import textwrap
+from collections.abc import Generator
 from importlib import import_module
-from typing import Any, Callable, Dict, Generator, NamedTuple, Optional, Tuple, Type
+from typing import Any, Callable, Dict, NamedTuple, Optional, Tuple, Type
 
 from ddutils.module_getter import get_module
 

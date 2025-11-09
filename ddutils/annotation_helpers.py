@@ -1,13 +1,13 @@
 import inspect
 import sys
-from typing import Any, Sequence, Tuple, Union, get_args
+from collections.abc import Sequence
+from typing import Any, Tuple, Union, get_args
 
 if sys.version_info >= (3, 10):
     from types import UnionType
 else:
 
-    class UnionType:
-        ...
+    class UnionType: ...
 
 
 NON_COMPLEX_SEQUENCE_TYPES = (str, bytes, bytearray)

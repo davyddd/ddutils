@@ -58,7 +58,7 @@ ignore = [
     # flake8-todos
     "TD003",
     # pyupgrade
-    "UP007", "UP045",
+    "UP006", "UP007", "UP035", "UP045",
 ]
 extend-per-file-ignores = { "__init__.py" = ["F401"] }
 
