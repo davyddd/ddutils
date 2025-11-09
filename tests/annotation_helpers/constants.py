@@ -8,7 +8,7 @@ COMMON_PYTHON_TYPES = (bool, int, float, str, tuple, list, dict)
 OPTIONAL_INT_ANNOTATIONS = [(Optional[int],), (Union[int, None],)]
 
 if sys.version_info >= (3, 10):
-    OPTIONAL_INT_ANNOTATIONS.append((int | None,))
+    OPTIONAL_INT_ANNOTATIONS.append((int | None,))  # type: ignore
 
 # List annotations
 
