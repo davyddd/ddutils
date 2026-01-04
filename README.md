@@ -227,6 +227,14 @@ delta = timedelta(seconds=5, milliseconds=500)
 convert_timedelta_to_milliseconds(delta)  # 5500
 ```
 
+## Datetime Helpers
+
+Utilities for working with dates and times.
+
+### utc_now
+
+Returns the current datetime in UTC timezone.
+
 ## Safe Decorators
 
 Decorators that help functions fail safely and handle exceptions gracefully.
