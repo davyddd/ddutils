@@ -1,7 +1,13 @@
-from datetime import UTC, datetime
+import sys
+from datetime import datetime
 from unittest import TestCase
 
 from ddutils.datetime_helpers import utc_now
+
+if sys.version_info >= (3, 10):
+    from datetime import UTC
+else:
+    from datetime.timezone import utc as UTC  # noqa: N812
 
 
 class TestUtcNow(TestCase):
