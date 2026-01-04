@@ -7,7 +7,9 @@ from ddutils.datetime_helpers import utc_now
 if sys.version_info >= (3, 11):
     from datetime import UTC
 else:
-    from datetime.timezone import utc as UTC  # noqa: N812
+    from datetime import timezone
+
+    UTC = timezone.utc
 
 
 class TestUtcNow(TestCase):
