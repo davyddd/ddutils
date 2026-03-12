@@ -23,21 +23,6 @@ class ScopedRegistry(Generic[_T]):
         self.registry = {}
         self.destructor_method_name = destructor_method_name
 
-    async def __call__(self, **kwargs: Any) -> _T:
-        key = self.scope_func()
-        if key not in self.registry:
-            value: _T
-            result: Any = self.create_func(**kwargs)
-            if inspect.isawaitable(result):
-                value = await result
-            else:
-                value = result
-
-            self.registry[key] = value
-            return value
-
-        return self.registry[key]
-
     def get(self) -> Optional[_T]:
         try:
             key = self.scope_func()
@@ -45,7 +30,25 @@ class ScopedRegistry(Generic[_T]):
         except Exception:  # noqa: BLE001
             return None
 
-    async def clear(self, *scopes: _ScopeType) -> None:
+    def _set(self, **kwargs: Any) -> tuple[_ScopeType, Union[_T, Awaitable[_T]]]:
+        key = self.scope_func()
+        if key in self.registry:
+            return key, self.registry[key]
+        return key, self.create_func(**kwargs)
+
+    def sync_set(self, **kwargs: Any) -> _T:
+        key, result = self._set(**kwargs)
+        if inspect.isawaitable(result):
+            raise TypeError('create_func returned an awaitable; use async_set instead')
+        self.registry[key] = result
+        return result
+
+    async def async_set(self, **kwargs: Any) -> _T:
+        key, result = self._set(**kwargs)
+        self.registry[key] = await result if inspect.isawaitable(result) else result
+        return self.registry[key]
+
+    def _clear(self, *scopes: _ScopeType):
         if not scopes and (scope := self.scope_func()):
             scopes = (scope,)
 
@@ -59,6 +62,22 @@ class ScopedRegistry(Generic[_T]):
                 if isinstance(self.destructor_method_name, str):
                     destructor_method = getattr(instance, self.destructor_method_name, None)
                     if destructor_method:
-                        result: Any = destructor_method()
-                        if inspect.isawaitable(result):
-                            await result
+                        yield destructor_method()
+
+    def sync_clear(self, *scopes: _ScopeType) -> None:
+        for result in self._clear(*scopes):
+            if inspect.isawaitable(result):
+                raise TypeError('destructor returned an awaitable; use async clear instead')
+
+    async def async_clear(self, *scopes: _ScopeType) -> None:
+        for result in self._clear(*scopes):
+            if inspect.isawaitable(result):
+                await result
+
+    # deprecated: use async_set / async_clear instead
+
+    async def __call__(self, **kwargs: Any) -> _T:
+        return await self.async_set(**kwargs)
+
+    async def clear(self, *scopes: _ScopeType) -> None:
+        await self.async_clear(*scopes)
