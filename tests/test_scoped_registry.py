@@ -60,3 +60,18 @@ class TestScopedRegistry(unittest.TestCase):
         asyncio.run(registry.clear())
         self.assertEqual(result, {})
         self.assertIsNone(registry.get())
+
+    def test_generic_type(self):
+        # Arrange
+        registry = ScopedRegistry[dict](create_func=sync_create_func, scope_func=scope_func)
+
+        # Act & Assert
+        self.assertIs(registry.generic_type, dict)
+
+    def test_generic_type_raises_without_type_param(self):
+        # Arrange
+        registry = ScopedRegistry(create_func=sync_create_func, scope_func=scope_func)
+
+        # Act & Assert
+        with self.assertRaises(TypeError):
+            _ = registry.generic_type

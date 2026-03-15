@@ -1,6 +1,6 @@
 import inspect
 from collections.abc import Awaitable, Hashable
-from typing import Any, Callable, Dict, Generic, Optional, TypeVar, Union
+from typing import Any, Callable, Dict, Generic, Optional, Type, TypeVar, Union, get_args
 
 _T = TypeVar('_T', bound=Any)
 _CreateFuncType = Union[Callable[..., _T], Callable[..., Awaitable[_T]]]
@@ -10,7 +10,7 @@ _RegistryType = Dict[_ScopeType, _T]
 
 
 class ScopedRegistry(Generic[_T]):
-    __slots__ = 'create_func', 'scope_func', 'registry', 'destructor_method_name'
+    __slots__ = 'create_func', 'scope_func', 'registry', 'destructor_method_name', '__orig_class__'
 
     create_func: _CreateFuncType
     scope_func: _ScopeFuncType
@@ -22,6 +22,13 @@ class ScopedRegistry(Generic[_T]):
         self.scope_func = scope_func
         self.registry = {}
         self.destructor_method_name = destructor_method_name
+
+    @property
+    def generic_type(self) -> Type[_T]:
+        try:
+            return get_args(self.__orig_class__)[0]
+        except (AttributeError, IndexError) as e:
+            raise TypeError('Cannot determine generic type parameter') from e
 
     def get(self) -> Optional[_T]:
         try:
