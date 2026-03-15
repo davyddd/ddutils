@@ -25,9 +25,10 @@ class ScopedRegistry(Generic[_T]):
 
     @property
     def generic_type(self) -> Type[_T]:
+        orig_class = getattr(self, '__orig_class__', None)
         try:
-            return get_args(self.__orig_class__)[0]
-        except (AttributeError, IndexError) as e:
+            return get_args(orig_class)[0]
+        except IndexError as e:
             raise TypeError('Cannot determine generic type parameter') from e
 
     def get(self) -> Optional[_T]:
