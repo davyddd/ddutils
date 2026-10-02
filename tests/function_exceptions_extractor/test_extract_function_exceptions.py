@@ -76,7 +76,7 @@ class TestExtractFunctionExceptions(TestCase):
     def test_func_with_invalid_exception(self):
         # Arrange
         def func_with_invalid_exception():
-            raise 'This is not an exception'  # noqa: B016
+            raise 'This is not an exception'  # noqa: B016  # ty: ignore[invalid-raise]
 
         # Act
         exceptions = list(extract_function_exceptions(func_with_invalid_exception))

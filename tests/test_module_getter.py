@@ -12,9 +12,9 @@ class TestModuleGetter(TestCase):
         self.sub_module_1_1 = ModuleType('sub_module_1_1')
         self.sub_module_1_2 = ModuleType('sub_module_1_2')
 
-        self.root_module.sub_module_1 = self.sub_module_1
-        self.sub_module_1.sub_module_1_1 = self.sub_module_1_1
-        self.sub_module_1.sub_module_1_2 = self.sub_module_1_2
+        self.root_module.sub_module_1 = self.sub_module_1  # ty: ignore[unresolved-attribute]
+        self.sub_module_1.sub_module_1_1 = self.sub_module_1_1  # ty: ignore[unresolved-attribute]
+        self.sub_module_1.sub_module_1_2 = self.sub_module_1_2  # ty: ignore[unresolved-attribute]
 
     def test_valid_module_retrieval(self):
         # Act & Assert
@@ -29,13 +29,13 @@ class TestModuleGetter(TestCase):
     def test_invalid_module_argument(self):
         # Act & Assert
         with self.assertRaises(ValueError) as cm:
-            get_module(None, ['sub_module_1'])
+            get_module(None, ['sub_module_1'])  # ty: ignore[invalid-argument-type]
         self.assertEqual(str(cm.exception), 'Argument `module` is required')
 
     def test_invalid_sub_modules_argument(self):
         # Act & Assert
         with self.assertRaises(ValueError) as cm:
-            get_module(self.root_module, 'sub_module_1')
+            get_module(self.root_module, 'sub_module_1')  # ty: ignore[invalid-argument-type]
         self.assertEqual(str(cm.exception), 'Argument `sub_modules` must be a list of strings')
 
     def test_non_existent_sub_module(self):

@@ -31,6 +31,6 @@ class TestGetSafeElement(TestCase):
     def test_non_sequence(self):
         # Act & Assert
         with self.assertRaises(TypeError):
-            get_safe_element(123, 1)
+            get_safe_element(123, 1)  # ty: ignore[invalid-argument-type]
         with self.assertRaises(TypeError):
-            get_safe_element(None, 0)
+            get_safe_element(None, 0)  # ty: ignore[invalid-argument-type]

@@ -50,7 +50,7 @@ class classproperty:  # noqa: N801
         """
         self.fget = fget
         self.__doc__ = fget.__doc__
-        self.__name__ = fget.__name__
+        self.__name__ = getattr(fget, '__name__', type(fget).__name__)
 
     def __get__(self, instance: Any, owner: Type[Any]) -> Any:
         """
