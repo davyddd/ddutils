@@ -40,8 +40,8 @@ class TestExceptionInfo(TestCase):
         self.assertEqual(exception_info.args, ('error message',))
         self.assertEqual(exception_info.kwargs, {'code': 1})
         self.assertIsInstance(exception_instance, CustomError)
-        self.assertEqual(exception_instance.message, 'error message')
-        self.assertEqual(exception_instance.code, 1)
+        self.assertEqual(exception_instance.message, 'error message')  # ty: ignore[unresolved-attribute]
+        self.assertEqual(exception_instance.code, 1)  # ty: ignore[unresolved-attribute]
 
     def test_exception_info_with_custom_exception_without_enough_arguments(self):
         # Arrange
@@ -57,5 +57,5 @@ class TestExceptionInfo(TestCase):
         self.assertEqual(exception_info.args, ('error message',))
         self.assertEqual(exception_info.kwargs, {})
         self.assertIsInstance(exception_instance, CustomError)
-        self.assertEqual(exception_instance.message, 'error message')
-        self.assertEqual(exception_instance.code, '<code>')
+        self.assertEqual(exception_instance.message, 'error message')  # ty: ignore[unresolved-attribute]
+        self.assertEqual(exception_instance.code, '<code>')  # ty: ignore[unresolved-attribute]

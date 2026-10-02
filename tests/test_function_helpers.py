@@ -1,4 +1,5 @@
-from typing import Callable, Union
+from types import FunctionType
+from typing import Union
 from unittest import TestCase
 
 from ddutils.function_helpers import create_new_function
@@ -14,7 +15,7 @@ def original_function_retrieved_global_parameter() -> int:
     return GLOBAL_PARAMETER
 
 
-def create_original_closure_function() -> Callable[[Union[int, float]], Union[int, float]]:
+def create_original_closure_function() -> FunctionType:
     y = 10
 
     def original_closure_function(x: Union[int, float]) -> Union[int, float]:

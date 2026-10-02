@@ -15,16 +15,21 @@ def _run_command_container(command):
         local(f'docker-compose run --rm {SERVICE_NAME} bash -c "{command}"')
 
 
+def tests():
+    _run_command_container('pytest')
+
+
 def linters():
     _run_command_container(
-        "ruff check . --config ruff.toml --fix && echo 'Ruff check completed'; "
-        'ruff format . --config ruff.toml; '
-        'mypy --config mypy.toml;'
+        "(ruff check . --config ruff.toml --fix && echo 'Ruff check completed'); "
+        "(ruff format . --config ruff.toml && echo 'Ruff format completed'); "
+        "(ty check --config-file ty.toml && echo 'Ty completed'); "
+        "(complexipy && echo 'Complexipy completed'); "
     )
 
 
-def tests():
-    _run_command_container('pytest')
+def execute(command):
+    _run_command_container(command)
 
 
 def shell():
@@ -35,5 +40,17 @@ def bash():
     _run_command_container('bash')
 
 
+### Helpers for working with docker
+
+
 def kill():
     local('docker kill $(docker ps -q)')
+
+
+def remove_none_images():
+    local('docker rmi -f $(docker images -f "dangling=true" -q)')
+
+
+def remove_all_containers():
+    local('docker rm -f $(docker ps -aq)')
+    local('docker volume rm -f $(docker volume ls -q)')

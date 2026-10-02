@@ -75,37 +75,44 @@ def _get_node_name(node: ast.AST) -> str:
         raise TypeError(f'Unsupported node type: {type(node)}')
 
 
+def _resolve_exception_class(func: Callable, exception_name: str) -> Optional[Type[Exception]]:
+    *sub_modules, class_name = exception_name.split('.')
+    exception_module = get_module(import_module(func.__module__), sub_modules)
+
+    exception_class: Optional[Type[Exception]] = getattr(exception_module, class_name, None)
+    if exception_class is None and hasattr(builtins, exception_name):
+        exception_class = getattr(builtins, exception_name)
+
+    return exception_class
+
+
+def _extract_raise_exception(func: Callable, node: ast.Raise) -> Optional[ExceptionInfo]:
+    if node.exc is None:
+        return None
+
+    try:
+        exception_name = _get_node_name(node.exc)
+    except TypeError:
+        return None
+
+    exception_args: Tuple[Any, ...] = ()
+    exception_kwargs: Dict[str, Any] = {}
+    if isinstance(node.exc, ast.Call):
+        exception_args = tuple(node.exc.args)
+        exception_kwargs = {kw.arg: kw.value for kw in node.exc.keywords if isinstance(kw.arg, str)}
+
+    exception_class = _resolve_exception_class(func, exception_name)
+    if exception_class is None:
+        return None
+
+    return ExceptionInfo(exception_class=exception_class, args=exception_args, kwargs=exception_kwargs)
+
+
 def extract_function_exceptions(func: Callable) -> Generator[ExceptionInfo, None, None]:
     source = textwrap.dedent(inspect.getsource(func))
-    tree = ast.parse(source)
 
-    for node in ast.walk(tree):
+    for node in ast.walk(ast.parse(source)):
         if isinstance(node, ast.Raise):
-            if node.exc is None:
-                continue
-
-            try:
-                exception_name: str = _get_node_name(node.exc)
-                exception_args: Tuple[Any, ...] = ()
-                exception_kwargs: Dict[str, Any] = {}
-            except TypeError:
-                continue
-
-            if isinstance(node.exc, ast.Call):
-                exception_args = tuple(node.exc.args)
-                exception_kwargs = {kw.arg: kw.value for kw in node.exc.keywords if isinstance(kw.arg, str)}
-
-            exception_name_slices = exception_name.split('.')
-            class_name = exception_name_slices[-1]
-            sub_modules = exception_name_slices[:-1]
-
-            exception_module = get_module(import_module(func.__module__), sub_modules)
-
-            exception_class: Optional[Type[Exception]] = getattr(exception_module, class_name, None)
-            if exception_class is None and hasattr(builtins, exception_name):
-                exception_class = getattr(builtins, exception_name)
-
-            if exception_class is None:
-                continue
-
-            yield ExceptionInfo(exception_class=exception_class, args=exception_args, kwargs=exception_kwargs)
+            exception_info = _extract_raise_exception(func, node)
+            if exception_info is not None:
+                yield exception_info

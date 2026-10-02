@@ -1,9 +1,9 @@
 import sys
 from types import CellType, CodeType, FunctionType
-from typing import Callable, Optional
+from typing import Optional
 
 
-def create_new_function(base_func: Callable, new_name: Optional[str] = None) -> Callable:
+def create_new_function(base_func: FunctionType, new_name: Optional[str] = None) -> FunctionType:
     base_code = base_func.__code__
     func_name = new_name or base_code.co_name
 

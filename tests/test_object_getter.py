@@ -24,6 +24,6 @@ class TestObjectGetter(TestCase):
 
     def test_non_string_path(self):
         # Act & Assert
-        self.assertIsNone(get_object_by_path(123))
-        self.assertIsNone(get_object_by_path([]))
-        self.assertIsNone(get_object_by_path({}))
+        self.assertIsNone(get_object_by_path(123))  # ty: ignore[invalid-argument-type]
+        self.assertIsNone(get_object_by_path([]))  # ty: ignore[invalid-argument-type]
+        self.assertIsNone(get_object_by_path({}))  # ty: ignore[invalid-argument-type]
