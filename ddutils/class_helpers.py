@@ -1,10 +1,11 @@
 import inspect
-from typing import Any, Callable, Optional, Type, TypeVar
+from collections.abc import Callable
+from typing import Any, TypeVar
 
 _T = TypeVar('_T', bound=Any)
 
 
-def get_origin_class_of_method(cls: Any, method_name: str) -> Optional[Type]:
+def get_origin_class_of_method(cls: Any, method_name: str) -> type | None:
     """
     Find the class in the inheritance hierarchy where a method is originally defined.
 
@@ -52,7 +53,7 @@ class classproperty:  # noqa: N801
         self.__doc__ = fget.__doc__
         self.__name__ = getattr(fget, '__name__', type(fget).__name__)
 
-    def __get__(self, instance: Any, owner: Type[Any]) -> Any:
+    def __get__(self, instance: Any, owner: type[Any]) -> Any:
         """
         Retrieve the property value using the descriptor protocol.
 

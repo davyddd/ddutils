@@ -1,15 +1,16 @@
 import logging
+from collections.abc import Callable
 from functools import wraps
-from typing import Any, Callable, Optional, Tuple, Type
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
 
 def safe_call(
-    func: Optional[Callable] = None,
+    func: Callable | None = None,
     capture_exception: bool = True,
-    default_result: Optional[Any] = None,
-    exceptions: Tuple[Type[Exception], ...] = (Exception,),
+    default_result: Any | None = None,
+    exceptions: tuple[type[Exception], ...] = (Exception,),
 ) -> Callable:
     if func is None:
         return lambda _func: safe_call(
@@ -32,7 +33,7 @@ def safe_call(
 
 
 def retry_once_after_exception(
-    func: Optional[Callable] = None, capture_exception: bool = True, exceptions: Tuple[Type[Exception], ...] = (Exception,)
+    func: Callable | None = None, capture_exception: bool = True, exceptions: tuple[type[Exception], ...] = (Exception,)
 ) -> Callable:
     if func is None:
         return lambda _func: retry_once_after_exception(func=_func, capture_exception=capture_exception, exceptions=exceptions)

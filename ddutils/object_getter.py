@@ -1,8 +1,8 @@
 import importlib
-from typing import Any, Optional
+from typing import Any
 
 
-def get_object_by_path(path: Optional[str]) -> Any:
+def get_object_by_path(path: str | None) -> Any:
     try:
         if not isinstance(path, str):
             raise ValueError

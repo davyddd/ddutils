@@ -317,32 +317,63 @@ json_loads = get_object_by_path('json.loads')
 
 ## Scoped Registry
 
-A registry that manages object instances within defined scopes.
+A registry that keeps one object instance per scope and manages its lifetime.
 
 ### ScopedRegistry
 
-Manages object instances within scopes (like per request or per session).
+Keeps one object per scope. The scope key comes from `scope_func`, for example `asyncio.current_task`
+(one object per task), `os.getpid` (one per process) or a `ContextVar` getter (one per request, inherited
+by the tasks spawned inside it).
+
+`scope()` is the entry point into a scope: it creates the object on enter and removes it on exit, calling
+the optional destructor exactly once. Nested `scope()` blocks join the existing object and leave it alone.
+Concurrent first accesses with the same key call `create_func` only once.
 
 ```python
+import asyncio
+from contextvars import ContextVar
+
 from ddutils.scoped_registry import ScopedRegistry
 
 
-def get_current_request_id(): ...
+async def create_session(): ...
 
 
-def create_database_connection(): ...
-
-
-db_registry = ScopedRegistry(
-    create_func=create_database_connection,
-    scope_func=get_current_request_id,
-)
+# One session per task: a child task spawned with gather/create_task gets its own session
+session_registry = ScopedRegistry(create_func=create_session, scope_func=asyncio.current_task, destructor_method_name='close')
 
 
 async def handle_request():
-    db = await db_registry()  # Returns existing or creates new db connection
-    await db.execute('select ...')
+    async with session_registry.scope() as session:  # created here, closed and removed on exit
+        await session.execute('select ...')
+        async with session_registry.scope() as same_session:  # nested block joins
+            ...
+
+
+async def create_log_properties(**kwargs): ...
+
+
+# One object per request: the key lives in a ContextVar set by the middleware, child tasks inherit it
+request_key: ContextVar[object | None] = ContextVar('request_key', default=None)
+log_registry = ScopedRegistry(create_func=create_log_properties, scope_func=request_key.get)
+
+
+async def middleware(headers):
+    token = request_key.set(object())
+    try:
+        async with log_registry.scope(headers=headers) as log_properties:
+            await asyncio.gather(work(), work())  # both see the same log_properties via log_registry.get()
+    finally:
+        request_key.reset(token)
 ```
+
+Lower-level methods are available when a context manager does not fit:
+
+- `get()` returns the current object or `None`;
+- `set(**kwargs)` returns the existing object or creates it;
+- `clear()` removes the object of the current scope and calls the destructor.
+
+`scope_func` must return a hashable key; if it returns `None` or an unhashable value, every method raises `RuntimeError`.
 
 ## Function Exception Extraction
 

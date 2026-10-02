@@ -1,15 +1,7 @@
-import sys
-from datetime import datetime
+from datetime import UTC, datetime
 from unittest import TestCase
 
 from ddutils.datetime_helpers import utc_now
-
-if sys.version_info >= (3, 11):
-    from datetime import UTC
-else:
-    from datetime import timezone
-
-    UTC = timezone.utc
 
 
 class TestUtcNow(TestCase):

@@ -1,4 +1,5 @@
-FROM python:3.14.0-slim
+# Local development always runs on the newest supported Python (latest patch release)
+FROM python:3.14-slim
 
 ENV LC_ALL=C.UTF-8
 ENV LANG=C.UTF-8

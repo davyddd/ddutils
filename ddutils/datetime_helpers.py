@@ -1,12 +1,4 @@
-import sys
-from datetime import datetime
-
-if sys.version_info >= (3, 11):
-    from datetime import UTC
-else:
-    from datetime import timezone
-
-    UTC = timezone.utc
+from datetime import UTC, datetime
 
 
 def utc_now() -> datetime:
