@@ -1,8 +1,7 @@
 from types import ModuleType
-from typing import List
 
 
-def get_module(module: ModuleType, sub_modules: List[str]) -> ModuleType:
+def get_module(module: ModuleType, sub_modules: list[str]) -> ModuleType:
     if not module:
         raise ValueError('Argument `module` is required')
     elif not isinstance(sub_modules, list):

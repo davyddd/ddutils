@@ -13,7 +13,7 @@ exclude = [
     "fabfile.py",
 ]
 line-length = 128
-target-version = "py39"
+target-version = "py311"
 output-format = "concise"
 
 
@@ -61,8 +61,6 @@ ignore = [
     "Q000", "Q001", "Q002", "Q003",
     # flake8-todos
     "TD003",
-    # pyupgrade
-    "UP006", "UP007", "UP035", "UP045",
 ]
 
 [lint.extend-per-file-ignores]

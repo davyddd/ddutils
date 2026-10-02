@@ -1,10 +1,9 @@
 # Changes here will be overwritten by Copier; do NOT edit manually.
-_commit: v0.0.2
+_commit: v0.0.4
 _src_path: gh:davyddd/dd-lib-stub
 copyright_year: 2024
-docker_python_version: 3.14.0
 max_python_version: '3.14'
-min_python_version: '3.9'
+min_python_version: '3.11'
 package_description: Domain Driven Utils Library
 package_keywords: python, ddutils
 package_name: ddutils

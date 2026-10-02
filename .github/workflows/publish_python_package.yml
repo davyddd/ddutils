@@ -7,16 +7,16 @@ on:
 
 jobs:
     quality-assurance:
-        uses: davyddd/dd-lib-stub/.github/workflows/quality_assurance.yml@v0.0.2
+        uses: davyddd/dd-lib-stub/.github/workflows/quality_assurance.yml@v0.0.4
         with:
             package-name: ddutils
-            test-matrix: '{"python-version": ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]}'
+            test-matrix: '{"python-version": ["3.11", "3.12", "3.13", "3.14"]}'
             default-python-version: '3.14'
             upload-coverage: true
         secrets: inherit
     publish:
         needs: quality-assurance
-        uses: davyddd/dd-lib-stub/.github/workflows/publish_python_package.yml@v0.0.2
+        uses: davyddd/dd-lib-stub/.github/workflows/publish_python_package.yml@v0.0.4
         with:
             package-name: ddutils
             python-version: '3.14'
