@@ -321,17 +321,17 @@ A registry that keeps one object instance per scope and manages its lifetime.
 
 ### ScopedRegistry
 
-The scope key comes either from `scope_func` (for example `asyncio.current_task` or `os.getpid`) or,
-when `scope_func` is omitted, from a `ContextVar` owned by the registry. In the latter case the key is set
-by `scope()` and inherited by every task spawned inside the block (`gather`, `TaskGroup`, `create_task`),
-so children see the same value as the parent.
+Keeps one object per scope. The scope key comes from `scope_func`, for example `asyncio.current_task`
+(one object per task), `os.getpid` (one per process) or a `ContextVar` getter (one per request, inherited
+by the tasks spawned inside it).
 
-`scope()` is the entry point into a scope: it creates the value on enter and removes it on exit, calling
-the optional destructor exactly once. Nested `scope()` blocks join the existing value and leave it alone.
+`scope()` is the entry point into a scope: it creates the object on enter and removes it on exit, calling
+the optional destructor exactly once. Nested `scope()` blocks join the existing object and leave it alone.
 Concurrent first accesses with the same key call `create_func` only once.
 
 ```python
 import asyncio
+from contextvars import ContextVar
 
 from ddutils.scoped_registry import ScopedRegistry
 
@@ -353,22 +353,27 @@ async def handle_request():
 async def create_log_properties(**kwargs): ...
 
 
-# No scope_func: the key lives in a ContextVar and child tasks inherit it
-log_registry = ScopedRegistry(create_func=create_log_properties)
+# One object per request: the key lives in a ContextVar set by the middleware, child tasks inherit it
+request_key: ContextVar[object | None] = ContextVar('request_key', default=None)
+log_registry = ScopedRegistry(create_func=create_log_properties, scope_func=request_key.get)
 
 
 async def middleware(headers):
-    async with log_registry.scope(headers=headers) as log_properties:
-        await asyncio.gather(work(), work())  # both see the same log_properties via log_registry.get()
+    token = request_key.set(object())
+    try:
+        async with log_registry.scope(headers=headers) as log_properties:
+            await asyncio.gather(work(), work())  # both see the same log_properties via log_registry.get()
+    finally:
+        request_key.reset(token)
 ```
 
 Lower-level methods are available when a context manager does not fit:
 
-- `get()` returns the current value or `None`;
-- `async_set(**kwargs)` / `sync_set(**kwargs)` return the existing value or create it (`sync_set` requires a sync `create_func`);
-- `async_clear(*scopes)` / `sync_clear(*scopes)` remove the given scopes (the current one by default) and call the destructor.
+- `get()` returns the current object or `None`;
+- `set(**kwargs)` returns the existing object or creates it;
+- `clear()` removes the object of the current scope and calls the destructor.
 
-Without `scope_func`, `get()` outside of `scope()` returns `None` and `async_set` / `sync_set` raise `RuntimeError`.
+`scope_func` must return a hashable key; if it returns `None` or an unhashable value, every method raises `RuntimeError`.
 
 ## Function Exception Extraction
 

@@ -1,5 +1,6 @@
 import asyncio
 import unittest
+from contextvars import ContextVar
 
 from parameterized import parameterized
 
@@ -43,43 +44,21 @@ class TestScopedRegistry(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(registry.destructor_method_name, 'close')
         self.assertIsNone(registry.get())
 
-    def test_sync_set(self):
-        # Arrange
-        registry = ScopedRegistry(create_func=sync_create_func, scope_func=constant_scope_func)
-
-        # Act
-        first = registry.sync_set(name='first')
-        second = registry.sync_set(name='second')
-
-        # Assert
-        self.assertIs(first, second)
-        self.assertEqual(first.name, 'first')
-        self.assertIs(registry.get(), first)
-
-    def test_sync_set_rejects_async_create_func(self):
-        # Arrange
-        registry = ScopedRegistry(create_func=async_create_func, scope_func=constant_scope_func)
-
-        # Act & Assert
-        with self.assertRaises(TypeError):
-            registry.sync_set()
-        self.assertEqual(registry.registry, {})
-
     @parameterized.expand((sync_create_func, async_create_func))
-    async def test_async_set(self, func):
+    async def test_set(self, func):
         # Arrange
         registry = ScopedRegistry(create_func=func, scope_func=constant_scope_func)
 
         # Act
-        first = await registry.async_set(name='first')
-        second = await registry.async_set(name='second')
+        first = await registry.set(name='first')
+        second = await registry.set(name='second')
 
         # Assert
         self.assertIs(first, second)
         self.assertEqual(first.name, 'first')
         self.assertIs(registry.get(), first)
 
-    async def test_async_set_race(self):
+    async def test_set_race(self):
         # Arrange
         calls = 0
 
@@ -92,7 +71,7 @@ class TestScopedRegistry(unittest.IsolatedAsyncioTestCase):
         registry = ScopedRegistry(create_func=slow_create_func, scope_func=constant_scope_func)
 
         # Act
-        results = await asyncio.gather(*(registry.async_set() for _ in range(5)))
+        results = await asyncio.gather(*(registry.set() for _ in range(5)))
 
         # Assert
         self.assertEqual(calls, 1)
@@ -100,77 +79,56 @@ class TestScopedRegistry(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(all(result is results[0] for result in results))
 
     @parameterized.expand((sync_create_func, async_create_func))
-    async def test_async_clear_with_destructor(self, func):
+    async def test_clear_with_destructor(self, func):
         # Arrange
         registry = ScopedRegistry(create_func=func, scope_func=constant_scope_func, destructor_method_name='close')
-        resource = await registry.async_set()
+        resource = await registry.set()
 
         # Act
-        await registry.async_clear()
+        await registry.clear()
 
         # Assert
         self.assertEqual(resource.closed, 1)
         self.assertIsNone(registry.get())
         self.assertEqual(registry.registry, {})
 
-    async def test_async_clear_with_async_destructor(self):
+    async def test_clear_with_async_destructor(self):
         # Arrange
         registry = ScopedRegistry(create_func=sync_create_func, scope_func=constant_scope_func, destructor_method_name='aclose')
-        resource = await registry.async_set()
+        resource = await registry.set()
 
         # Act
-        await registry.async_clear()
+        await registry.clear()
 
         # Assert
         self.assertEqual(resource.closed, 1)
         self.assertEqual(registry.registry, {})
 
-    def test_sync_clear(self):
-        # Arrange
-        registry = ScopedRegistry(create_func=sync_create_func, scope_func=constant_scope_func, destructor_method_name='close')
-        resource = registry.sync_set()
-
-        # Act
-        registry.sync_clear()
-
-        # Assert
-        self.assertEqual(resource.closed, 1)
-        self.assertEqual(registry.registry, {})
-
-    def test_sync_clear_rejects_async_destructor(self):
-        # Arrange
-        registry = ScopedRegistry(create_func=sync_create_func, scope_func=constant_scope_func, destructor_method_name='aclose')
-        registry.sync_set()
-
-        # Act & Assert
-        with self.assertRaises(TypeError):
-            registry.sync_clear()
-
-    async def test_clear_specific_scopes(self):
+    async def test_clear_affects_only_current_scope(self):
         # Arrange
         current = {'key': 'a'}
         registry = ScopedRegistry(
             create_func=sync_create_func, scope_func=lambda: current['key'], destructor_method_name='close'
         )
-        resource_a = await registry.async_set(name='a')
+        resource_a = await registry.set(name='a')
         current['key'] = 'b'
-        resource_b = await registry.async_set(name='b')
+        resource_b = await registry.set(name='b')
 
         # Act
-        await registry.async_clear('a')
+        await registry.clear()
 
         # Assert
-        self.assertEqual(resource_a.closed, 1)
-        self.assertEqual(resource_b.closed, 0)
-        self.assertEqual(registry.registry, {'b': resource_b})
+        self.assertEqual(resource_a.closed, 0)
+        self.assertEqual(resource_b.closed, 1)
+        self.assertEqual(registry.registry, {'a': resource_a})
 
     async def test_clear_without_entries_does_nothing(self):
         # Arrange
         registry = ScopedRegistry(create_func=sync_create_func, scope_func=constant_scope_func, destructor_method_name='close')
 
         # Act & Assert
-        await registry.async_clear()
-        registry.sync_clear('unknown')
+        await registry.clear()
+        await registry.clear()
         self.assertEqual(registry.registry, {})
 
     def test_generic_type(self):
@@ -261,25 +219,6 @@ class TestScopedRegistryScope(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(outer.closed, 1)
         self.assertEqual(registry.registry, {})
 
-    async def test_scope_without_scope_func_is_inherited_by_child_tasks(self):
-        # Arrange
-        registry = ScopedRegistry(create_func=sync_create_func, destructor_method_name='close')
-
-        async def child():
-            return registry.get()
-
-        # Act
-        async with registry.scope() as resource:
-            child_result, *_ = await asyncio.gather(child(), child())
-            created_task_result = await asyncio.create_task(child())
-
-        # Assert
-        self.assertIs(child_result, resource)
-        self.assertIs(created_task_result, resource)
-        self.assertEqual(resource.closed, 1)
-        self.assertIsNone(registry.get())
-        self.assertIsNone(registry._key_var.get())
-
     async def test_scope_with_task_scope_func_is_exclusive_to_the_task(self):
         # Arrange
         registry = ScopedRegistry(create_func=sync_create_func, scope_func=asyncio.current_task, destructor_method_name='close')
@@ -300,36 +239,6 @@ class TestScopedRegistryScope(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(child_resource.closed, 1)
         self.assertEqual(entries_after_child, 1)
         self.assertEqual(parent_resource.closed, 1)
-        self.assertEqual(registry.registry, {})
-
-    async def test_parallel_scopes_without_scope_func_get_distinct_values(self):
-        # Arrange
-        registry = ScopedRegistry(create_func=sync_create_func, destructor_method_name='close')
-
-        async def work():
-            async with registry.scope() as resource:
-                await asyncio.sleep(0)
-                return resource
-
-        # Act
-        first, second = await asyncio.gather(work(), work())
-
-        # Assert
-        self.assertIsNot(first, second)
-        self.assertEqual((first.closed, second.closed), (1, 1))
-        self.assertEqual(registry.registry, {})
-
-    async def test_outside_scope_without_scope_func(self):
-        # Arrange
-        registry = ScopedRegistry(create_func=sync_create_func)
-
-        # Act & Assert
-        self.assertIsNone(registry.get())
-        self.assertEqual(registry.registry, {})
-        with self.assertRaises(RuntimeError):
-            await registry.async_set()
-        with self.assertRaises(RuntimeError):
-            registry.sync_set()
         self.assertEqual(registry.registry, {})
 
     async def test_scope_race(self):
@@ -358,4 +267,44 @@ class TestScopedRegistryScope(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(calls, 1)
         self.assertTrue(all(result is results[0] for result in results))
         self.assertEqual(results[0].closed, 1)
+        self.assertEqual(registry.registry, {})
+
+    async def test_scope_func_from_context_var_is_inherited_by_child_tasks(self):
+        # Arrange
+        execution_key: ContextVar[object | None] = ContextVar('execution_key', default=None)
+        registry = ScopedRegistry(create_func=sync_create_func, scope_func=execution_key.get, destructor_method_name='close')
+
+        async def child():
+            return registry.get()
+
+        # Act
+        token = execution_key.set(object())
+        try:
+            async with registry.scope() as resource:
+                child_result, *_ = await asyncio.gather(child(), child())
+                created_task_result = await asyncio.create_task(child())
+        finally:
+            execution_key.reset(token)
+
+        # Assert
+        self.assertIs(child_result, resource)
+        self.assertIs(created_task_result, resource)
+        self.assertEqual(resource.closed, 1)
+        self.assertEqual(registry.registry, {})
+
+    @parameterized.expand(((lambda: None,), (lambda: [],), (lambda: {},)))
+    async def test_invalid_scope_key(self, scope_func):
+        # Arrange
+        registry = ScopedRegistry(create_func=sync_create_func, scope_func=scope_func)
+
+        # Act & Assert
+        with self.assertRaises(RuntimeError):
+            registry.get()
+        with self.assertRaises(RuntimeError):
+            await registry.set()
+        with self.assertRaises(RuntimeError):
+            async with registry.scope():
+                pass
+        with self.assertRaises(RuntimeError):
+            await registry.clear()
         self.assertEqual(registry.registry, {})
