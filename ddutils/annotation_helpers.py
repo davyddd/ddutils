@@ -1,14 +1,7 @@
 import inspect
-import sys
 from collections.abc import Sequence
-from typing import Any, Tuple, Union, get_args
-
-if sys.version_info >= (3, 10):
-    from types import UnionType
-else:
-
-    class UnionType: ...
-
+from types import UnionType
+from typing import Any, Union, get_args
 
 NON_COMPLEX_SEQUENCE_TYPES = (str, bytes, bytearray)
 
@@ -57,7 +50,7 @@ def get_complex_sequence_element_annotation(annotation: Any) -> Any:
     return element_annotation
 
 
-def get_dict_items_annotation(annotation: Any) -> Tuple[Any, Any]:
+def get_dict_items_annotation(annotation: Any) -> tuple[Any, Any]:
     if hasattr(annotation, '__supertype__'):
         return get_dict_items_annotation(annotation.__supertype__)
     elif not is_subclass(annotation, dict):

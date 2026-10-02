@@ -2,9 +2,9 @@ import ast
 import builtins
 import inspect
 import textwrap
-from collections.abc import Generator
+from collections.abc import Callable, Generator
 from importlib import import_module
-from typing import Any, Callable, Dict, NamedTuple, Optional, Tuple, Type
+from typing import Any, NamedTuple
 
 from ddutils.module_getter import get_module
 
@@ -20,16 +20,16 @@ class Annotation(NamedTuple):
 
 
 class ExceptionInfo:
-    exception_class: Type[Exception]
-    args: Tuple[Any, ...]
-    kwargs: Dict[str, Any]
+    exception_class: type[Exception]
+    args: tuple[Any, ...]
+    kwargs: dict[str, Any]
 
-    def __init__(self, exception_class: Type[Exception], args: Tuple[Any, ...], kwargs: Dict[str, Any]):
+    def __init__(self, exception_class: type[Exception], args: tuple[Any, ...], kwargs: dict[str, Any]):
         self.exception_class = exception_class
         self.args = tuple(_v.value if isinstance(_v, ast.Constant) else UNDEFINED_VALUE for _v in args)
         self.kwargs = {_k: _v.value if isinstance(_v, ast.Constant) else UNDEFINED_VALUE for _k, _v in kwargs.items()}
 
-    def get_kwargs(self) -> Dict[str, Any]:
+    def get_kwargs(self) -> dict[str, Any]:
         annotations = tuple(
             Annotation(argument, argument_info.default)
             for argument, argument_info in inspect.signature(self.exception_class.__init__).parameters.items()
@@ -52,7 +52,7 @@ class ExceptionInfo:
 
         return kwargs
 
-    def get_exception_instance(self, dry_run: bool = True) -> Optional[Exception]:
+    def get_exception_instance(self, dry_run: bool = True) -> Exception | None:
         kwargs = {k: f'<{k}>' if v is UNDEFINED_VALUE else v for k, v in self.get_kwargs().items()}
         try:
             # There might be issues with strict typing because UNDEFINED_VALUE is always replaced with a string
@@ -75,18 +75,18 @@ def _get_node_name(node: ast.AST) -> str:
         raise TypeError(f'Unsupported node type: {type(node)}')
 
 
-def _resolve_exception_class(func: Callable, exception_name: str) -> Optional[Type[Exception]]:
+def _resolve_exception_class(func: Callable, exception_name: str) -> type[Exception] | None:
     *sub_modules, class_name = exception_name.split('.')
     exception_module = get_module(import_module(func.__module__), sub_modules)
 
-    exception_class: Optional[Type[Exception]] = getattr(exception_module, class_name, None)
+    exception_class: type[Exception] | None = getattr(exception_module, class_name, None)
     if exception_class is None and hasattr(builtins, exception_name):
         exception_class = getattr(builtins, exception_name)
 
     return exception_class
 
 
-def _extract_raise_exception(func: Callable, node: ast.Raise) -> Optional[ExceptionInfo]:
+def _extract_raise_exception(func: Callable, node: ast.Raise) -> ExceptionInfo | None:
     if node.exc is None:
         return None
 
@@ -95,8 +95,8 @@ def _extract_raise_exception(func: Callable, node: ast.Raise) -> Optional[Except
     except TypeError:
         return None
 
-    exception_args: Tuple[Any, ...] = ()
-    exception_kwargs: Dict[str, Any] = {}
+    exception_args: tuple[Any, ...] = ()
+    exception_kwargs: dict[str, Any] = {}
     if isinstance(node.exc, ast.Call):
         exception_args = tuple(node.exc.args)
         exception_kwargs = {kw.arg: kw.value for kw in node.exc.keywords if isinstance(kw.arg, str)}

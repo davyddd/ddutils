@@ -24,7 +24,11 @@ class TestGetAnnotationWithoutOptional(TestCase):
 
     @parameterized.expand(
         tuple(
-            zip(tuple(Union[annotation, None] for annotation in FLAT_GENERIC_LIST_ANNOTATIONS), FLAT_GENERIC_LIST_ANNOTATIONS)
+            zip(
+                tuple(Union[annotation, None] for annotation in FLAT_GENERIC_LIST_ANNOTATIONS),  # noqa: UP007
+                FLAT_GENERIC_LIST_ANNOTATIONS,
+                strict=False,
+            )
         )
     )
     def test_optional_generic_list_annotation(self, annotation, expected_annotation):
@@ -33,7 +37,11 @@ class TestGetAnnotationWithoutOptional(TestCase):
 
     @parameterized.expand(
         tuple(
-            zip(tuple(Union[annotation, None] for annotation in FLAT_GENERIC_DICT_ANNOTATIONS), FLAT_GENERIC_DICT_ANNOTATIONS)
+            zip(
+                tuple(Union[annotation, None] for annotation in FLAT_GENERIC_DICT_ANNOTATIONS),  # noqa: UP007
+                FLAT_GENERIC_DICT_ANNOTATIONS,
+                strict=False,
+            )
         )
     )
     def test_optional_generic_dict_annotation(self, annotation, expected_annotation):
@@ -48,4 +56,4 @@ class TestGetAnnotationWithoutOptional(TestCase):
     def test_union_without_none(self):
         # Act & Assert
         with self.assertRaises(TypeError):
-            get_annotation_without_optional(Union[int, str])
+            get_annotation_without_optional(Union[int, str])  # noqa: UP007

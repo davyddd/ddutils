@@ -1,5 +1,4 @@
 from types import FunctionType
-from typing import Union
 from unittest import TestCase
 
 from ddutils.function_helpers import create_new_function
@@ -7,7 +6,7 @@ from ddutils.function_helpers import create_new_function
 GLOBAL_PARAMETER: int = 42
 
 
-def original_function(x: Union[int, float]) -> Union[int, float]:
+def original_function(x: int | float) -> int | float:
     return x + 1
 
 
@@ -18,7 +17,7 @@ def original_function_retrieved_global_parameter() -> int:
 def create_original_closure_function() -> FunctionType:
     y = 10
 
-    def original_closure_function(x: Union[int, float]) -> Union[int, float]:
+    def original_closure_function(x: int | float) -> int | float:
         return x + y
 
     return original_closure_function
