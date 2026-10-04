@@ -173,6 +173,36 @@ get_origin_class_of_method(C, 'method')  # <class 'C'>
 get_origin_class_of_method(B, 'method')  # <class 'A'>
 ```
 
+### get_generic_base_argument
+
+Returns the type argument a class bound to a generic base when subclassing it. Meant for
+`__init_subclass__` of generic base classes that need their concrete parameter at runtime: `None` means the
+base was not subscripted, a `TypeVar` means the subclass is still generic.
+
+```python
+from typing import Generic, TypeVar
+
+from ddutils.class_helpers import get_generic_base_argument
+
+T = TypeVar('T')
+
+
+class Cache(Generic[T]):
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+        domain_class = get_generic_base_argument(cls, Cache)
+        if domain_class is None or isinstance(domain_class, TypeVar):
+            raise TypeError(f'{cls.__name__} must specify the domain type: class {cls.__name__}(Cache[YourDomain])')
+        cls.domain_class = domain_class
+
+
+class ProfileCache(Cache[Profile]):
+    pass
+
+
+ProfileCache.domain_class  # <class 'Profile'>
+```
+
 ## Function Helpers
 
 Tools for creating and modifying Python functions at runtime.

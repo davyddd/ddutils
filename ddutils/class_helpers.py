@@ -1,6 +1,6 @@
 import inspect
 from collections.abc import Callable
-from typing import Any, TypeVar
+from typing import Any, TypeVar, get_args, get_origin
 
 _T = TypeVar('_T', bound=Any)
 
@@ -22,6 +22,26 @@ def get_origin_class_of_method(cls: Any, method_name: str) -> type | None:
     for base in inspect.getmro(cls):
         if method_name in base.__dict__:
             return base
+    return None
+
+
+def get_generic_base_argument(cls: type, generic_base: type, position: int = 0) -> Any | None:
+    """
+    Return the type argument that `cls` bound to `generic_base` when subclassing it.
+
+    For `class ProfileCache(GenericCache[Profile])` this is `Profile`. Returns `None` when `cls` does not
+    subscript `generic_base` (`class Cache(GenericCache)`), and a `TypeVar` when the subclass is still
+    generic (`class Base[T](GenericCache[T])`), so callers can reject both cases in `__init_subclass__`.
+
+    Args:
+        cls: The class to inspect.
+        generic_base: The generic base class whose argument to look up.
+        position: Index of the argument for bases with several type parameters.
+    """
+    for base in getattr(cls, '__orig_bases__', ()):
+        if get_origin(base) is generic_base:
+            arguments = get_args(base)
+            return arguments[position] if position < len(arguments) else None
     return None
 
 
