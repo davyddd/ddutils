@@ -1,4 +1,5 @@
 import asyncio
+import os
 import unittest
 from contextvars import ContextVar
 
@@ -29,6 +30,20 @@ async def async_create_func(**kwargs) -> Resource:
 
 def constant_scope_func() -> str:
     return 'scope'
+
+
+def make_execution_scope_func():
+    """One key per `scope()` block, kept in a ContextVar and inherited by tasks spawned inside the block."""
+    execution_key: ContextVar[str | None] = ContextVar('execution_key', default=None)
+
+    def execution_scope_func(token: str | None) -> str | None:
+        key = execution_key.get()
+        if key is None and token is not None:
+            execution_key.set(token)
+            key = token
+        return key
+
+    return execution_scope_func
 
 
 class TestScopedRegistry(unittest.IsolatedAsyncioTestCase):
@@ -130,6 +145,14 @@ class TestScopedRegistry(unittest.IsolatedAsyncioTestCase):
         await registry.clear()
         await registry.clear()
         self.assertEqual(registry.registry, {})
+
+    def test_builtin_scope_func(self):
+        # Arrange: builtins without an introspectable signature are called with no arguments
+        registry = ScopedRegistry(create_func=sync_create_func, scope_func=os.getpid)
+
+        # Act & Assert
+        self.assertEqual(registry.get(), None)
+        self.assertEqual(registry._get_scope_key('ignored-token'), os.getpid())
 
     def test_generic_type(self):
         # Arrange
@@ -269,27 +292,71 @@ class TestScopedRegistryScope(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(results[0].closed, 1)
         self.assertEqual(registry.registry, {})
 
-    async def test_scope_func_from_context_var_is_inherited_by_child_tasks(self):
+    async def test_execution_scope_is_inherited_by_child_tasks(self):
         # Arrange
-        execution_key: ContextVar[object | None] = ContextVar('execution_key', default=None)
-        registry = ScopedRegistry(create_func=sync_create_func, scope_func=execution_key.get, destructor_method_name='close')
+        registry = ScopedRegistry(
+            create_func=sync_create_func, scope_func=make_execution_scope_func(), destructor_method_name='close'
+        )
 
         async def child():
             return registry.get()
 
+        async def request():
+            async with registry.scope(name='request') as resource:
+                gathered, *_ = await asyncio.gather(child(), child())
+                created = await asyncio.create_task(child())
+                async with registry.scope() as nested:
+                    pass
+                return resource, gathered, created, nested
+
         # Act
-        token = execution_key.set(object())
-        try:
-            async with registry.scope() as resource:
-                child_result, *_ = await asyncio.gather(child(), child())
-                created_task_result = await asyncio.create_task(child())
-        finally:
-            execution_key.reset(token)
+        resource, gathered, created, nested = await asyncio.create_task(request())
 
         # Assert
-        self.assertIs(child_result, resource)
-        self.assertIs(created_task_result, resource)
+        self.assertEqual(resource.name, 'request')
+        self.assertIs(gathered, resource)
+        self.assertIs(created, resource)
+        self.assertIs(nested, resource)
         self.assertEqual(resource.closed, 1)
+        self.assertEqual(registry.registry, {})
+
+    async def test_execution_scope_parallel_requests_get_distinct_values(self):
+        # Arrange
+        registry = ScopedRegistry(
+            create_func=sync_create_func, scope_func=make_execution_scope_func(), destructor_method_name='close'
+        )
+
+        async def request():
+            async with registry.scope() as resource:
+                await asyncio.sleep(0)
+                return resource
+
+        # Act
+        first, second = await asyncio.gather(asyncio.create_task(request()), asyncio.create_task(request()))
+
+        # Assert
+        self.assertIsNot(first, second)
+        self.assertEqual((first.closed, second.closed), (1, 1))
+        self.assertEqual(registry.registry, {})
+
+    async def test_execution_scope_reads_do_not_start_a_scope(self):
+        # Arrange: a read before any scope (e.g. a startup log) must not plant a key that later tasks inherit
+        registry = ScopedRegistry(
+            create_func=sync_create_func, scope_func=make_execution_scope_func(), destructor_method_name='close'
+        )
+
+        async def request():
+            async with registry.scope() as resource:
+                await asyncio.sleep(0)
+                return resource
+
+        # Act & Assert
+        with self.assertRaises(RuntimeError):
+            registry.get()
+        with self.assertRaises(RuntimeError):
+            await registry.clear()
+        first, second = await asyncio.gather(asyncio.create_task(request()), asyncio.create_task(request()))
+        self.assertIsNot(first, second)
         self.assertEqual(registry.registry, {})
 
     @parameterized.expand(((lambda: None,), (lambda: [],), (lambda: {},)))
@@ -307,4 +374,23 @@ class TestScopedRegistryScope(unittest.IsolatedAsyncioTestCase):
                 pass
         with self.assertRaises(RuntimeError):
             await registry.clear()
+        self.assertEqual(registry.registry, {})
+
+    async def test_execution_scope_set_starts_a_scope_the_caller_must_clear(self):
+        # Arrange
+        registry = ScopedRegistry(
+            create_func=sync_create_func, scope_func=make_execution_scope_func(), destructor_method_name='close'
+        )
+
+        async def child():
+            return registry.get()
+
+        # Act
+        resource = await registry.set()
+        seen_by_child = await asyncio.create_task(child())
+        await registry.clear()
+
+        # Assert
+        self.assertIs(seen_by_child, resource)
+        self.assertEqual(resource.closed, 1)
         self.assertEqual(registry.registry, {})

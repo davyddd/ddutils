@@ -321,9 +321,8 @@ A registry that keeps one object instance per scope and manages its lifetime.
 
 ### ScopedRegistry
 
-Keeps one object per scope. The scope key comes from `scope_func`, for example `asyncio.current_task`
-(one object per task), `os.getpid` (one per process) or a `ContextVar` getter (one per request, inherited
-by the tasks spawned inside it).
+Keeps one object per scope. `scope_func` decides what the current scope is and returns its key; `None` means
+"no current scope" and makes every method raise `RuntimeError`.
 
 `scope()` is the entry point into a scope: it creates the object on enter and removes it on exit, calling
 the optional destructor exactly once. Nested `scope()` blocks join the existing object and leave it alone.
@@ -331,7 +330,6 @@ Concurrent first accesses with the same key call `create_func` only once.
 
 ```python
 import asyncio
-from contextvars import ContextVar
 
 from ddutils.scoped_registry import ScopedRegistry
 
@@ -348,32 +346,53 @@ async def handle_request():
         await session.execute('select ...')
         async with session_registry.scope() as same_session:  # nested block joins
             ...
-
-
-async def create_log_properties(**kwargs): ...
-
-
-# One object per request: the key lives in a ContextVar set by the middleware, child tasks inherit it
-request_key: ContextVar[object | None] = ContextVar('request_key', default=None)
-log_registry = ScopedRegistry(create_func=create_log_properties, scope_func=request_key.get)
-
-
-async def middleware(headers):
-    token = request_key.set(object())
-    try:
-        async with log_registry.scope(headers=headers) as log_properties:
-            await asyncio.gather(work(), work())  # both see the same log_properties via log_registry.get()
-    finally:
-        request_key.reset(token)
 ```
 
 Lower-level methods are available when a context manager does not fit:
 
 - `get()` returns the current object or `None`;
-- `set(**kwargs)` returns the existing object or creates it;
+- `set(**kwargs)` returns the existing object or creates it. Whoever calls it takes over the cleanup that
+  `scope()` does on exit and must call `clear()` when the object is no longer needed, if it ever is: a
+  per-process client may live until the process ends;
 - `clear()` removes the object of the current scope and calls the destructor.
 
-`scope_func` must return a hashable key; if it returns `None` or an unhashable value, every method raises `RuntimeError`.
+#### Scopes kept in a ContextVar
+
+A `scope_func` that declares a `token` parameter receives a freshly generated token when `scope()` is entered
+and `None` on every other access. This is for a scope of one execution (an HTTP request, an actor run) rather
+than one task: the function stores the token in a `ContextVar`, so coroutines spawned inside the block
+(`gather`, `TaskGroup`, `create_task`) inherit it and share the object with the parent, while outside of
+`scope()` there is no key and every method raises.
+
+```python
+from contextvars import ContextVar
+
+execution_key: ContextVar[str | None] = ContextVar('execution_key', default=None)
+
+
+def execution_scope(token: str | None) -> str | None:
+    key = execution_key.get()
+    if key is None and token is not None:  # entering scope() outside of an execution: start one
+        execution_key.set(token)
+        key = token
+    return key
+
+
+async def create_log_properties(**kwargs): ...
+
+
+log_registry = ScopedRegistry(create_func=create_log_properties, scope_func=execution_scope)
+
+
+async def middleware(headers):
+    async with log_registry.scope(headers=headers) as log_properties:
+        await asyncio.gather(work(), work())  # both see the same log_properties via log_registry.get()
+```
+
+Reads never start a scope: a `get()` from a long-living context (a startup log in the server's main task)
+that planted a key would be inherited by every request task, making all requests share one object. For the
+same reason the key is not reset when the block ends, so `scope()` must be entered in a task that does not
+outlive the block (a request handler, an actor run).
 
 ## Function Exception Extraction
 
