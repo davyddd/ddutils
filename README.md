@@ -173,6 +173,31 @@ get_origin_class_of_method(C, 'method')  # <class 'C'>
 get_origin_class_of_method(B, 'method')  # <class 'A'>
 ```
 
+### get_generic_base_argument
+
+Returns the type argument a class bound to a generic base when subclassing it. `None` when the base was not
+subscripted, the `TypeVar` itself when the subclass is still generic.
+
+```python
+from typing import Generic, TypeVar
+
+from ddutils.class_helpers import get_generic_base_argument
+
+T = TypeVar('T')
+
+
+class Repository(Generic[T]):
+    pass
+
+
+class UserRepository(Repository[User]):
+    pass
+
+
+get_generic_base_argument(UserRepository, Repository)  # <class 'User'>
+get_generic_base_argument(Repository, Repository)      # None
+```
+
 ## Function Helpers
 
 Tools for creating and modifying Python functions at runtime.
