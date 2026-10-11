@@ -1,6 +1,8 @@
 import inspect
-from collections.abc import Callable
+from collections.abc import Callable, Sized
 from typing import Any, TypeVar, get_args, get_origin
+
+from ddutils.annotation_helpers import get_annotation_name
 
 _T = TypeVar('_T', bound=Any)
 
@@ -43,6 +45,53 @@ def get_generic_base_argument(cls: type, generic_base: type, position: int = 0) 
             arguments = get_args(base)
             return arguments[position] if position < len(arguments) else None
     return None
+
+
+def require_class_attribute(
+    cls: type,
+    name: str,
+    expected_type: type | tuple[type, ...] | None = None,
+    *,
+    allow_empty: bool = False,
+) -> Any:
+    """
+    Return a class attribute that subclasses are expected to declare, for `__init_subclass__` checks.
+
+    A base class that reads its configuration from class attributes (`topic`, `bootstrap_servers`,
+    `serializer`, ...) wants a wrong or forgotten declaration to fail at class definition, with the
+    attribute and the class named, rather than deep inside the first call that uses it.
+
+    Args:
+        cls: The class being defined, as passed to `__init_subclass__`.
+        name: The attribute name.
+        expected_type: A class or tuple of classes the value must be an instance of; `None` skips the check.
+        allow_empty: Accept an empty value (`''`, `[]`, `{}`, ...). Numbers are never "empty", so `0` passes.
+
+    Raises:
+        AttributeError: The attribute is missing or `None`, or empty unless `allow_empty`.
+        TypeError: The value is not an instance of `expected_type`.
+
+    Example:
+        class BaseConsumer:
+            topic: ClassVar[str]
+            batch_size: ClassVar[int] = 100
+
+            def __init_subclass__(cls, **kwargs):
+                super().__init_subclass__(**kwargs)
+                require_class_attribute(cls, 'topic', str)
+                require_class_attribute(cls, 'batch_size', int)
+    """
+    value = getattr(cls, name, None)
+    if value is None:
+        raise AttributeError(f'`{name}` class attribute of {cls.__name__} must be set')
+    if not allow_empty and isinstance(value, Sized) and len(value) == 0:
+        raise AttributeError(f'`{name}` class attribute of {cls.__name__} must not be empty')
+    if expected_type is not None and not isinstance(value, expected_type):
+        raise TypeError(
+            f'`{name}` class attribute of {cls.__name__} must be {get_annotation_name(expected_type)}, '
+            f'got {type(value).__name__}'
+        )
+    return value
 
 
 class classproperty:  # noqa: N801
