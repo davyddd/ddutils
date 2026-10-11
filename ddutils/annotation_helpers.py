@@ -1,7 +1,7 @@
 import inspect
 from collections.abc import Sequence
 from types import UnionType
-from typing import Any, Union, get_args
+from typing import Any, Union, get_args, get_origin
 
 NON_COMPLEX_SEQUENCE_TYPES = (str, bytes, bytearray)
 
@@ -76,3 +76,34 @@ def get_annotation_without_optional(annotation: Any) -> Any:
             raise TypeError('Union types are not supported') from None
 
         return annotation_args[0]
+
+
+def _join_annotation_names(items: Any, separator: str) -> str:
+    return separator.join(get_annotation_name(item) for item in items)
+
+
+def get_annotation_name(annotation: Any) -> str:
+    """
+    Return a readable name of an annotation for messages: `int`, `int | float`, `list[int]`, `None`.
+
+    Accepts a class, a union (`int | None`, `Optional[int]`, `Union[int, str]`), a generic (`dict[str, int]`,
+    `Literal['a', 'b']`) or a tuple of classes as `isinstance` takes it, and renders them the way they are written.
+    """
+    if annotation is None or annotation is type(None):
+        return 'None'
+    if annotation is Ellipsis:
+        return '...'
+    if isinstance(annotation, (str, bytes, int, float)):  # a `Literal` value
+        return repr(annotation)
+    if isinstance(annotation, tuple):
+        return _join_annotation_names(annotation, ' | ')
+    if isinstance(annotation, UnionType) or get_origin(annotation) is Union:
+        return _join_annotation_names(get_args(annotation), ' | ')
+    if isinstance(annotation, list):  # the parameters of a `Callable`
+        return f'[{_join_annotation_names(annotation, ", ")}]'
+    origin, args = get_origin(annotation), get_args(annotation)
+    if origin is not None and args:
+        return f'{get_annotation_name(origin)}[{_join_annotation_names(args, ", ")}]'
+    if isinstance(annotation, type):
+        return annotation.__name__
+    return str(annotation).replace('typing.', '')

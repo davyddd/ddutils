@@ -120,6 +120,21 @@ get_annotation_without_optional(Optional[int])  # <class 'int'>
 get_annotation_without_optional(Optional[List[str]])  # typing.List[str]
 ```
 
+### get_annotation_name
+
+Returns a readable name of an annotation for error messages: a class, a union or a tuple of classes as
+`isinstance` takes it.
+
+```python
+from ddutils.annotation_helpers import get_annotation_name
+
+
+get_annotation_name(int)            # 'int'
+get_annotation_name((int, float))   # 'int | float'
+get_annotation_name(int | None)     # 'int | None'
+get_annotation_name(list[int])      # 'list[int]'
+```
+
 ## Class Helpers
 
 Helper functions for inspecting and extending class-level behavior
@@ -196,6 +211,36 @@ class UserRepository(Repository[User]):
 
 get_generic_base_argument(UserRepository, Repository)  # <class 'User'>
 get_generic_base_argument(Repository, Repository)      # None
+```
+
+### require_class_attribute
+
+Returns a class attribute that subclasses are expected to declare, for `__init_subclass__` checks. A missing,
+`None` or empty value raises `AttributeError`, a value of the wrong type raises `TypeError`; both name the
+attribute and the class, so a misconfigured subclass fails at definition rather than on first use.
+
+```python
+from typing import ClassVar
+
+from ddutils.class_helpers import require_class_attribute
+
+
+class BaseConsumer:
+    topic: ClassVar[str]
+    batch_size: ClassVar[int] = 100
+
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+        require_class_attribute(cls, 'topic', str)
+        require_class_attribute(cls, 'batch_size', int)
+
+
+class EventConsumer(BaseConsumer):
+    topic = 'events'
+
+
+class BrokenConsumer(BaseConsumer):  # AttributeError: `topic` class attribute of BrokenConsumer must be set
+    pass
 ```
 
 ## Function Helpers
