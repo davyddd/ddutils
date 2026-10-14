@@ -66,16 +66,23 @@ is_subclass(List[str], dict)  # False
 
 ### is_complex_sequence
 
-Checks whether a type annotation represents a sequence type, excluding `str`, `bytes`, and `bytearray`.
+Checks whether a type annotation represents a sequence type, excluding `str`, `bytes`, and `bytearray`
+and their subclasses (a `str`-based `Enum` is not a complex sequence).
 
 ```python
+from enum import Enum
 from typing import List, Tuple
 from ddutils.annotation_helpers import is_complex_sequence
+
+
+class Kind(str, Enum):
+    A = 'a'
 
 
 is_complex_sequence(List[int])  # True
 is_complex_sequence(Tuple[str, ...])  # True
 is_complex_sequence(str)  # False
+is_complex_sequence(Kind)  # False
 is_complex_sequence(dict)  # False
 ```
 
@@ -312,6 +319,30 @@ delta = timedelta(seconds=5, milliseconds=500)
 convert_timedelta_to_milliseconds(delta)  # 5500
 ```
 
+### convert_to_builtin
+
+Casts a value to its builtin base type (see [get_builtin_base_type](#get_builtin_base_type)):
+a `str` subclass becomes a plain `str`, an `Enum` member becomes its `.value` cast the same way.
+Raises `TypeError` for a value without a builtin base.
+
+```python
+from enum import Enum
+from ddutils.convertors import convert_to_builtin
+
+
+class Kind(str, Enum):
+    A = 'a'
+
+
+class UserId(int):
+    pass
+
+
+convert_to_builtin(Kind.A)  # 'a' (not 'Kind.A', which `str(Kind.A)` would give)
+convert_to_builtin(UserId(2))  # 2
+convert_to_builtin(object())  # TypeError
+```
+
 ## Datetime Helpers
 
 Utilities for working with dates and times.
@@ -472,6 +503,50 @@ AST-based introspection for extracting exceptions from function source code.
 
 Parses a function’s source code to find all `raise` statements and identify the exception types they use. 
 Returns an iterator of `ExceptionInfo` objects describing each raised exception.
+
+## Value Helpers
+
+Runtime counterparts of the annotation helpers: they inspect values, not type hints.
+
+### get_builtin_base_type
+
+Returns the builtin type a value should be treated as, looking past subclasses: `bool`, `int`, `float`, `str` or `bytes`
+(`bool` is checked before `int`). An `Enum` member is looked at through its `.value`.
+Raises `TypeError` for any other value. Useful for APIs that dispatch on the exact type (serializers, query builders).
+
+```python
+from enum import Enum
+from ddutils.value_helpers import get_builtin_base_type
+
+
+class Kind(str, Enum):
+    A = 'a'
+
+
+class UserId(int):
+    pass
+
+
+get_builtin_base_type(UserId(2))  # <class 'int'>
+get_builtin_base_type(True)  # <class 'bool'>
+get_builtin_base_type(Kind.A)  # <class 'str'>
+get_builtin_base_type(object())  # TypeError
+```
+
+### is_complex_sequence_value
+
+Checks whether a value is a sequence other than `str`, `bytes` or `bytearray` (subclasses included).
+Sets and mappings are not sequences. The runtime counterpart of [is_complex_sequence](#is_complex_sequence).
+
+```python
+from ddutils.value_helpers import is_complex_sequence_value
+
+
+is_complex_sequence_value([1, 2])  # True
+is_complex_sequence_value((1, 2))  # True
+is_complex_sequence_value('abc')  # False
+is_complex_sequence_value({1, 2})  # False
+```
 
 ## Sequence Helpers
 
