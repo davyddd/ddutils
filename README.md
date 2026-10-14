@@ -501,6 +501,58 @@ that planted a key would be inherited by every request task, making all requests
 same reason the key is not reset when the block ends, so `scope()` must be entered in a task that does not
 outlive the block (a request handler, an actor run).
 
+## Connections
+
+`ddutils.connections` sits between a `ScopedRegistry` and the code that uses a connection: a query, a cache
+lookup, a Kafka send. A registry holds one connection per scope: a pooled client per process, a session
+per task. The connections module adds two things on top:
+
+- `ConnectionManagerFactory(registries, default, connection_manager_class=ConnectionManager)` resolves a
+  connection alias to its registry, like Django's `using`. Calling it opens a connection manager on the
+  chosen registry; `registry(alias)` returns the registry itself; `close()` clears every registry for the
+  current scope, calling the connection's destructor, which is the shutdown hook of process-scoped clients.
+- `ConnectionManager(registry)` is the default connection manager: an async context manager that hands out
+  the connection of the registry's current scope and releases nothing on exit. Enough for clients that are
+  pools themselves, such as ClickHouse, Redis or a Kafka producer.
+
+Databases with transactions pass their own `connection_manager_class`: a unit of work that begins, commits
+or rolls back and closes the session on exit. It depends on the driver, so it lives in the project.
+
+```python
+import os
+from enum import Enum
+
+from ddutils.connections import ConnectionManagerFactory
+from ddutils.scoped_registry import ScopedRegistry
+
+
+class ClickhouseDB(str, Enum):
+    PRIMARY = 'primary'
+
+
+client_registries = {
+    db: ScopedRegistry(create_func=make_client_for(db), scope_func=os.getpid, destructor_method_name='close')
+    for db in ClickhouseDB
+}
+clickhouse = ConnectionManagerFactory(client_registries, default=ClickhouseDB.PRIMARY)
+
+
+async with clickhouse() as client:
+    result = await client.query(sql)
+
+
+# a transactional database: `Atomic` is your unit of work over `registry.scope()`
+atomic = ConnectionManagerFactory(session_registries, default=PostgresDB.PRIMARY, connection_manager_class=Atomic)
+
+
+async with atomic(alias=PostgresDB.REPLICA) as session:
+    ...
+
+
+# on shutdown: closes the clients of every alias that was used in this process
+await clickhouse.close()
+```
+
 ## Function Exception Extraction
 
 AST-based introspection for extracting exceptions from function source code.
