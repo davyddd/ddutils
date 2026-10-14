@@ -10,6 +10,7 @@ from . import (
     safe_decorators,
     scoped_registry,
     sequence_helpers,
+    value_helpers,
 )
 
 __all__ = (
@@ -24,4 +25,5 @@ __all__ = (
     'safe_decorators',
     'scoped_registry',
     'sequence_helpers',
+    'value_helpers',
 )

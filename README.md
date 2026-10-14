@@ -319,28 +319,34 @@ delta = timedelta(seconds=5, milliseconds=500)
 convert_timedelta_to_milliseconds(delta)  # 5500
 ```
 
-### convert_to_builtin
+### convert_to_base_value
 
-Casts a value to its builtin base type (see [get_builtin_base_type](#get_builtin_base_type)):
-a `str` subclass becomes a plain `str`, an `Enum` member becomes its `.value` cast the same way.
-Raises `TypeError` for a value without a builtin base.
+Casts a value to its base value type (see [get_base_value_type](#get_base_value_type)):
+a `str` subclass becomes a plain `str`, a `UUID` subclass a plain `UUID`, a `datetime` subclass a plain `datetime`
+with the same `tzinfo` and `fold`, an `Enum` member becomes its `.value` cast the same way, `None` stays `None`.
+Raises `TypeError` for a value without a base type.
+
+Normalize a value once, then dispatch on the result with plain `isinstance` checks: subclasses, `Enum` members
+and third-party types such as a `pendulum.DateTime` all land on the stdlib type.
 
 ```python
 from enum import Enum
-from ddutils.convertors import convert_to_builtin
+from uuid import UUID
+from ddutils.convertors import convert_to_base_value
 
 
 class Kind(str, Enum):
     A = 'a'
 
 
-class UserId(int):
+class ProfileId(UUID):
     pass
 
 
-convert_to_builtin(Kind.A)  # 'a' (not 'Kind.A', which `str(Kind.A)` would give)
-convert_to_builtin(UserId(2))  # 2
-convert_to_builtin(object())  # TypeError
+convert_to_base_value(None)  # None
+convert_to_base_value(Kind.A)  # 'a' (not 'Kind.A', which `str(Kind.A)` would give)
+convert_to_base_value(ProfileId('12345678-1234-5678-1234-567812345678'))  # UUID('1234...'), exact type UUID
+convert_to_base_value(object())  # TypeError
 ```
 
 ## Datetime Helpers
@@ -508,29 +514,53 @@ Returns an iterator of `ExceptionInfo` objects describing each raised exception.
 
 Runtime counterparts of the annotation helpers: they inspect values, not type hints.
 
-### get_builtin_base_type
+### get_base_value_type
 
-Returns the builtin type a value should be treated as, looking past subclasses: `bool`, `int`, `float`, `str` or `bytes`
-(`bool` is checked before `int`). An `Enum` member is looked at through its `.value`.
-Raises `TypeError` for any other value. Useful for APIs that dispatch on the exact type (serializers, query builders).
+Returns the base value type a value should be treated as, looking past subclasses. The candidates, in order,
+are `BASE_VALUE_TYPES`: `NoneType`, `bool`, `int`, `float`, `str`, `bytes`, `bytearray`, `datetime`, `date`, `time`,
+`timedelta`, `UUID`, `Decimal` (`bool` is checked before `int`, `datetime` before `date`). An `Enum` member is looked at
+through its `.value`. Raises `TypeError` for any other value, a collection or a mapping included. Useful for APIs that dispatch on the exact type
+(serializers, query builders).
 
 ```python
+from datetime import datetime
 from enum import Enum
-from ddutils.value_helpers import get_builtin_base_type
+from uuid import UUID
+from ddutils.value_helpers import get_base_value_type
 
 
 class Kind(str, Enum):
     A = 'a'
 
 
-class UserId(int):
+class ProfileId(UUID):
     pass
 
 
-get_builtin_base_type(UserId(2))  # <class 'int'>
-get_builtin_base_type(True)  # <class 'bool'>
-get_builtin_base_type(Kind.A)  # <class 'str'>
-get_builtin_base_type(object())  # TypeError
+get_base_value_type(None)  # <class 'NoneType'>
+get_base_value_type(True)  # <class 'bool'>
+get_base_value_type(Kind.A)  # <class 'str'>
+get_base_value_type(ProfileId('12345678-1234-5678-1234-567812345678'))  # <class 'uuid.UUID'>
+get_base_value_type(datetime.now())  # <class 'datetime.datetime'>
+get_base_value_type(object())  # TypeError
+```
+
+### unwrap_enum
+
+Returns the `.value` of an `Enum` member and any other value as is. `str(Kind.A)` of a `class Kind(str, Enum)`
+is `'Kind.A'`, so a member has to be unwrapped before it is formatted or cast.
+
+```python
+from enum import Enum
+from ddutils.value_helpers import unwrap_enum
+
+
+class Kind(str, Enum):
+    A = 'a'
+
+
+unwrap_enum(Kind.A)  # 'a'
+unwrap_enum('a')  # 'a'
 ```
 
 ### is_complex_sequence_value
