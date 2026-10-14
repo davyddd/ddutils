@@ -1,5 +1,7 @@
 from datetime import timedelta
-from typing import Protocol
+from typing import Any, Protocol
+
+from ddutils.value_helpers import get_builtin_base_type, unwrap_enum
 
 
 class ClassInstanceWithDict(Protocol):
@@ -21,3 +23,12 @@ def convert_to_repr(obj: ClassInstanceWithDict) -> str:
 
 def convert_timedelta_to_milliseconds(delta: timedelta) -> int:
     return int(delta.total_seconds() * 1000)
+
+
+def convert_to_builtin(value: Any) -> bool | int | float | str | bytes:
+    """
+    Cast a value to its builtin base type (see `get_builtin_base_type`): a `str` subclass becomes a plain `str`,
+    an `Enum` member becomes its `.value` cast the same way. Raises `TypeError` for a value without a builtin base.
+    """
+    value = unwrap_enum(value)
+    return get_builtin_base_type(value)(value)

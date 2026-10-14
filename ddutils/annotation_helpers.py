@@ -34,7 +34,7 @@ def is_subclass(annotation: Any, *base_types: Any) -> bool:
 
 def is_complex_sequence(annotation: Any) -> bool:
     annotation_origin = get_annotation_origin(annotation)
-    return annotation_origin not in NON_COMPLEX_SEQUENCE_TYPES and is_subclass(annotation_origin, Sequence)
+    return not is_subclass(annotation_origin, *NON_COMPLEX_SEQUENCE_TYPES) and is_subclass(annotation_origin, Sequence)
 
 
 def get_complex_sequence_element_annotation(annotation: Any) -> Any:
