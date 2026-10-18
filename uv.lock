@@ -183,7 +183,7 @@ toml = [
 
 [[package]]
 name = "ddutils"
-version = "0.2.2"
+version = "0.3.2"
 source = { editable = "." }
 
 [package.dev-dependencies]

@@ -553,6 +553,45 @@ async with atomic(alias=PostgresDB.REPLICA) as session:
 await clickhouse.close()
 ```
 
+## Feature Flags
+
+`ddutils.feature_flags` is the storage-agnostic part of feature flags: `FeatureFlagRecord` (on or off, the proportion
+of readers that see it, a free-form payload), the `FeatureFlagStorage` interface and `FeatureFlags`, which reads
+through a storage with a per-process cache (`BASE_TTL` plus a random jitter). While the storage fails, the last
+known record is served and re-read with an exponential backoff from `ERROR_TTL` up to the TTL. The storages live
+with their clients: `ddredis.feature_flags.RedisFeatureFlagStorage`, `ddaerospike.feature_flags.AerospikeFeatureFlagStorage`.
+
+Readers see booleans and payloads, not records. `is_enabled` is the flag's switch and its proportion in one answer:
+off for everyone when the flag is off, on for the `proportion` of the readers when it is on, so a kill-switch is a
+flag with proportion 1.0. With an `idempotent_key` (a user id, an account id) the split is repeatable, the same
+user always lands on the same side; without one it is random per call. `get_payload` is the payload as stored; its shape is the application's,
+parse it there.
+
+```python
+from ddredis.feature_flags import RedisFeatureFlagStorage
+from ddutils.feature_flags import FeatureFlags
+
+feature_flags = FeatureFlags(RedisFeatureFlagStorage(redis_client_factory))
+
+# a kill-switch: proportion 1.0, on or off for everyone
+if await feature_flags.is_enabled('new_checkout'):
+    ...
+
+# a gradual rollout: on for `proportion` of the users, the same users every time
+if await feature_flags.is_enabled('new_ranking', user_id):
+    ...
+
+# a kill-switch with settings
+if await feature_flags.is_enabled('email_provider_block'):
+    rules = EmailProviderBlockRules.model_validate(await feature_flags.get_payload('email_provider_block'))
+```
+
+A storage implements `get`, `get_map`, `put` and `delete`; `rename` defaults to
+put-then-delete and is overridden where the storage can do it atomically. `FeatureFlagRecord` validates itself on
+construction; a storage builds it with `from_dict` and, when what it read is not a valid record, logs it and reads
+it as the defaults. A storage failure raises `FeatureFlagStorageError`
+with the cause chained.
+
 ## Function Exception Extraction
 
 AST-based introspection for extracting exceptions from function source code.

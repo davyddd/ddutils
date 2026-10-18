@@ -1,8 +1,10 @@
 from . import (
     annotation_helpers,
     class_helpers,
+    connections,
     convertors,
     datetime_helpers,
+    feature_flags,
     function_exceptions_extractor,
     function_helpers,
     module_getter,
@@ -16,8 +18,10 @@ from . import (
 __all__ = (
     'annotation_helpers',
     'class_helpers',
+    'connections',
     'convertors',
     'datetime_helpers',
+    'feature_flags',
     'function_exceptions_extractor',
     'function_helpers',
     'module_getter',
