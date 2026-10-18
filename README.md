@@ -592,6 +592,21 @@ construction; a storage builds it with `from_dict` and, when what it read is not
 it as the defaults. A storage failure raises `FeatureFlagStorageError`
 with the cause chained.
 
+## Context Helpers
+
+### async_suppress
+
+`contextlib.suppress` as an async context manager, so it can share one `async with` with other async context
+managers instead of nesting a sync `with` inside. Swallows only the listed exceptions raised inside the block.
+
+```python
+from ddredis.lock import AlreadyAcquiredError, RedisLock
+from ddutils.context_helpers import async_suppress
+
+async with async_suppress(AlreadyAcquiredError), RedisLock(redis_client_factory, 'sync-profiles', timeout=30):
+    await sync_profiles()  # skipped when another worker holds the lock
+```
+
 ## Function Exception Extraction
 
 AST-based introspection for extracting exceptions from function source code.
