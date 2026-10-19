@@ -18,12 +18,14 @@ pip install ddutils
 
 ## Compatibility
 
-Python 3.11 to 3.14, no runtime dependencies. What changed in each release, breaking changes included, is in the
-[GitHub releases](https://github.com/davyddd/ddutils/releases).
+Python 3.11 to 3.14. What changed in each release, breaking changes included,
+is in the [GitHub releases](https://github.com/davyddd/ddutils/releases).
+
+No runtime dependencies. The tests need no external services.
 
 ## Development
 
-The project runs entirely in Docker. The tests need no external services. Requires Docker and [Fabric](https://www.fabfile.org/) on the host:
+The project runs entirely in Docker. Requires Docker and [Fabric](https://www.fabfile.org/) on the host:
 
 ```bash
 fab build      # build the dev image
