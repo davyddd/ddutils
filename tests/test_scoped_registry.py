@@ -1,11 +1,10 @@
 import asyncio
 import os
 import unittest
-from contextvars import ContextVar
 
 from parameterized import parameterized
 
-from ddutils.scoped_registry import ScopedRegistry
+from ddutils.scoped_registry import ScopedRegistry, execution_scope
 
 
 class Resource:
@@ -33,17 +32,7 @@ def constant_scope_func() -> str:
 
 
 def make_execution_scope_func():
-    """One key per `scope()` block, kept in a ContextVar and inherited by tasks spawned inside the block."""
-    execution_key: ContextVar[str | None] = ContextVar('execution_key', default=None)
-
-    def execution_scope_func(token: str | None) -> str | None:
-        key = execution_key.get()
-        if key is None and token is not None:
-            execution_key.set(token)
-            key = token
-        return key
-
-    return execution_scope_func
+    return execution_scope('execution_key')
 
 
 class TestScopedRegistry(unittest.IsolatedAsyncioTestCase):
