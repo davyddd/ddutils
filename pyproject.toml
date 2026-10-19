@@ -1,7 +1,7 @@
 [project]
 name = "ddutils"
 description = "Domain Driven Utils Library"
-version = "0.4.0"
+version = "0.4.1"
 authors = [{ name = "davyddd" }]
 license = "MIT"
 license-files = ["LICENSE"]
