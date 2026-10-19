@@ -38,6 +38,8 @@ fab bash       # bash inside the container
 This project was generated from [dd-lib-stub](https://github.com/davyddd/dd-lib-stub);
 run `uvx copier update` to pull in template updates.
 
+<!-- The sections below are the library's own; copier update leaves them alone -->
+
 ## Type Annotation Helpers
 
 Utilities for inspecting and working with Python type hints and generic types.
