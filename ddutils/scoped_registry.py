@@ -1,7 +1,9 @@
 import asyncio
 import inspect
+import os
 from collections.abc import AsyncIterator, Awaitable, Callable, Hashable
 from contextlib import asynccontextmanager
+from contextvars import ContextVar
 from typing import Any, Generic, TypeVar, get_args
 from uuid import uuid4
 
@@ -125,3 +127,40 @@ class ScopedRegistry(Generic[_T]):
         finally:
             if created:
                 await self.clear()
+
+
+def process_loop_scope() -> tuple[int, asyncio.AbstractEventLoop]:
+    """
+    Scope key for a client bound to its event loop (`redis.asyncio`, `aiokafka`, `aerospike_native`): one value per
+    process and running loop. A second loop in the same process (a script calling `asyncio.run` twice, a test
+    suite) gets its own client instead of an "attached to a different loop" error, and the pid guards a forked
+    child, whose inherited sockets must not be reused. Raises `RuntimeError` outside of a running loop.
+    """
+    return os.getpid(), asyncio.get_running_loop()
+
+
+def execution_scope(name: str) -> Callable[[str | None], str | None]:
+    """
+    A scope key for one execution (an HTTP request, an actor run) rather than one task, kept in a `ContextVar`
+    named `name`: the key planted on entering `scope()` is inherited by the coroutines spawned inside the block
+    (`gather`, `TaskGroup`, `create_task`), so they share the value with the parent. Reads never start a scope,
+    outside of `scope()` there is no key and the registry raises. One `ContextVar` per call, so every registry
+    gets its own scope function.
+
+    The key is not reset when the block ends, so `scope()` must be entered in a task that does not outlive the
+    block (a request handler, an actor run); a key left in a long-living task would be inherited by every task
+    spawned from it afterwards.
+    """
+    execution_key: ContextVar[str | None] = ContextVar(name, default=None)
+
+    def scope_func(token: str | None) -> str | None:
+        key = execution_key.get()
+        if key is None and token is not None:  # entering `scope()` outside of an execution: start one
+            execution_key.set(token)
+            key = token
+        return key
+
+    return scope_func
+
+
+__all__ = ('SCOPE_TOKEN_PARAMETER', 'ScopedRegistry', 'execution_scope', 'process_loop_scope')

@@ -9,7 +9,7 @@ from typing import Any, NamedTuple, Protocol, Self
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_PROPORTION = 0.01
+DEFAULT_PROPORTION = 1.0  # a record without a proportion is on for everyone when enabled
 
 BASE_TTL = 15  # seconds a record is served from the cache before it is re-read
 JITTER = 5  # seconds added at random to the TTL, so the readers of a process do not re-read at once
@@ -133,7 +133,7 @@ class _CacheEntry(NamedTuple):
 
 class FeatureFlags:
     """
-    Feature flags read through a `FeatureFlagStorage`, with a per-process cache.
+    Feature flags read through a `FeatureFlagStorage`, with a cache per instance: keep one instance per process.
 
     Each flag is on or off, has a proportion for gradual rollouts and a payload for arbitrary data. Records are
     cached for `base_ttl` plus a random jitter so the storage is not read on every call. While the storage
@@ -141,7 +141,7 @@ class FeatureFlags:
     and then with an exponential backoff up to `base_ttl`.
 
     `is_enabled` is the flag's switch and its proportion in one answer: off for everyone when the flag is off,
-    on for the `proportion` of the readers when it is on (a kill-switch is a flag with proportion 1.0). With an
+    on for the `proportion` of the readers when it is on (a kill-switch keeps the default proportion, 1.0). With an
     `idempotent_key` (a user id, an account id) the split is repeatable: every call with the same key lands on
     the same side, so a rollout is a consistent group. Without one it is random per call.
     `get_payload` is the flag's payload as stored; its shape is the application's business, parse it there.
@@ -149,7 +149,7 @@ class FeatureFlags:
     Example:
         feature_flags = FeatureFlags(RedisFeatureFlagStorage(redis_client_factory))
 
-        if await feature_flags.is_enabled('new_checkout'):              # proportion 1.0: on or off for everyone
+        if await feature_flags.is_enabled('new_checkout'):              # default proportion: on or off for everyone
             ...
         if await feature_flags.is_enabled('new_ranking', user_id):      # on for `proportion` of the users
             ...

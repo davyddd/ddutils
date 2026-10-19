@@ -1,72 +1,135 @@
-from typing import Any
 from unittest import TestCase
 from unittest.mock import patch
 
-from ddutils.safe_decorators import safe_call
+from ddutils.safe_decorators import NOT_SET, safe_call
 
 
 class TestSafeCallDecorator(TestCase):
-    def test_func_success(self):
+    def test_success(self):
         # Arrange
-        @safe_call
-        def func_success(a: Any, b: Any):  # noqa: ARG001
+        @safe_call()
+        def func(a: int, b: int) -> int:
             return a + b
 
         # Act & Assert
-        self.assertEqual(func_success(2, 3), 5)
+        self.assertEqual(func(2, 3), 5)
 
     @patch('ddutils.safe_decorators.logger')
-    def test_func_raises_exception(self, mock_logger):
+    def test_no_default_raises_the_error_unlogged(self, mock_logger):
         # Arrange
-        @safe_call
-        def func_raises_exception(a: Any, b: Any):  # noqa: ARG001
-            raise ValueError('Test exception')
+        @safe_call()
+        def func() -> int:
+            raise ValueError('boom')
 
         # Act & Assert
-        self.assertIsNone(func_raises_exception(2, 3))
-        mock_logger.exception.assert_called_once()
-
-    @patch('ddutils.safe_decorators.logger')
-    def test_func_with_default(self, mock_logger):
-        # Arrange
-        @safe_call(default_result='default')
-        def func_with_default(a: Any, b: Any):  # noqa: ARG001
-            raise ValueError('Test exception')
-
-        # Act & Assert
-        self.assertEqual(func_with_default(2, 3), 'default')
-        mock_logger.exception.assert_called_once()
-
-    @patch('ddutils.safe_decorators.logger')
-    def test_func_no_capture_exception(self, mock_logger):
-        # Arrange
-        @safe_call(capture_exception=False)
-        def func_no_capture_exception(a: Any, b: Any):  # noqa: ARG001
-            raise ValueError('Test exception')
-
-        # Act & Assert
-        self.assertIsNone(func_no_capture_exception(2, 3))
+        with self.assertRaises(ValueError):
+            func()
         mock_logger.exception.assert_not_called()
 
     @patch('ddutils.safe_decorators.logger')
-    def test_func_specific_exception_handling(self, mock_logger):
+    def test_default_replaces_the_error_and_logs_it(self, mock_logger):
         # Arrange
-        @safe_call(exceptions=(ValueError,))
-        def func_specific_exception_handling(a: Any, b: Any):  # noqa: ARG001
-            raise ValueError('Test exception')
+        @safe_call(default_result='default')
+        def func() -> str:
+            raise ValueError('boom')
 
         # Act & Assert
-        self.assertIsNone(func_specific_exception_handling(2, 3))
+        self.assertEqual(func(), 'default')
         mock_logger.exception.assert_called_once()
 
-    @patch('ddutils.safe_decorators.logger')
-    def test_func_specific_exception_not_handling(self, mock_logger):
+    def test_none_is_a_default_too(self):
         # Arrange
-        @safe_call(exceptions=(ValueError,))
-        def func_specific_exception_not_handling(a: Any, b: Any):  # noqa: ARG001
-            raise TypeError('Test exception')
+        @safe_call(default_result=None, capture_exception=False)
+        def func() -> int:
+            raise ValueError('boom')
+
+        # Act & Assert
+        self.assertIsNone(func())
+
+    @patch('ddutils.safe_decorators.logger')
+    def test_retries_then_succeeds(self, mock_logger):
+        # Arrange
+        calls: list[int] = []
+        succeeds_on_attempt = 3
+
+        @safe_call(retries=2)
+        def func() -> str:
+            calls.append(1)
+            if len(calls) < succeeds_on_attempt:
+                raise ValueError('boom')
+            return 'ok'
+
+        # Act & Assert
+        self.assertEqual(func(), 'ok')
+        self.assertEqual(len(calls), succeeds_on_attempt)
+        self.assertEqual(mock_logger.exception.call_count, 2)
+
+    @patch('ddutils.safe_decorators.logger')
+    def test_retries_exhausted_without_default_raises_the_last_error(self, mock_logger):
+        # Arrange
+        calls: list[int] = []
+
+        @safe_call(retries=1)
+        def func() -> str:
+            calls.append(1)
+            raise ValueError(f'boom {len(calls)}')
+
+        # Act & Assert
+        with self.assertRaises(ValueError) as ctx:
+            func()
+        self.assertEqual(str(ctx.exception), 'boom 2')
+        self.assertEqual(len(calls), 2)
+        mock_logger.exception.assert_called_once()  # the retried failure; the propagated one is the caller's
+
+    @patch('ddutils.safe_decorators.logger')
+    def test_retries_exhausted_with_default_returns_it(self, mock_logger):
+        # Arrange
+        calls: list[int] = []
+
+        @safe_call(retries=1, default_result=0)
+        def func() -> int:
+            calls.append(1)
+            raise ValueError('boom')
+
+        # Act & Assert
+        self.assertEqual(func(), 0)
+        self.assertEqual(len(calls), 2)
+        self.assertEqual(mock_logger.exception.call_count, 2)
+
+    @patch('ddutils.safe_decorators.logger')
+    def test_capture_exception_false_does_not_log(self, mock_logger):
+        # Arrange
+        @safe_call(default_result=None, capture_exception=False)
+        def func() -> int:
+            raise ValueError('boom')
+
+        # Act & Assert
+        self.assertIsNone(func())
+        mock_logger.exception.assert_not_called()
+
+    def test_other_exceptions_propagate(self):
+        # Arrange
+        @safe_call(default_result=None, retries=1, exceptions=(ValueError,))
+        def func() -> int:
+            raise TypeError('not handled')
 
         # Act & Assert
         with self.assertRaises(TypeError):
-            func_specific_exception_not_handling(2, 3)
-        mock_logger.exception.assert_not_called()
+            func()
+
+    def test_negative_retries_rejected(self):
+        # Act & Assert
+        with self.assertRaises(ValueError):
+            safe_call(retries=-1)
+
+    def test_keeps_the_wrapped_name(self):
+        # Arrange
+        @safe_call()
+        def read() -> int:
+            return 1
+
+        # Act & Assert
+        self.assertEqual(read.__name__, 'read')
+
+    def test_not_set_repr(self):
+        self.assertEqual(repr(NOT_SET), 'NOT_SET')

@@ -43,3 +43,13 @@ class TestModuleGetter(TestCase):
         with self.assertRaises(ValueError) as cm:
             get_module(self.root_module, ['sub_module_1', 'non_existent'])
         self.assertEqual(str(cm.exception), 'Module non_existent not found in sub_module_1')
+
+    def test_does_not_mutate_the_path(self):
+        # Arrange
+        path = ['sub_module_1', 'sub_module_1_1']
+
+        # Act
+        get_module(self.root_module, path)
+
+        # Assert
+        self.assertEqual(path, ['sub_module_1', 'sub_module_1_1'])

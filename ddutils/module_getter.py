@@ -10,10 +10,10 @@ def get_module(module: ModuleType, sub_modules: list[str]) -> ModuleType:
     if len(sub_modules) == 0:
         return module
 
-    sub_module = sub_modules.pop(0)
+    sub_module, *rest = sub_modules
 
     if hasattr(module, sub_module):
         module = getattr(module, sub_module)
-        return get_module(module, sub_modules)
+        return get_module(module, rest)
     else:
         raise ValueError(f'Module {sub_module} not found in {module.__name__}')

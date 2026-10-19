@@ -16,9 +16,14 @@ Install the library using pip:
 pip install ddutils
 ```
 
+## Compatibility
+
+Python 3.11 to 3.14, no runtime dependencies. What changed in each release, breaking changes included, is in the
+[GitHub releases](https://github.com/davyddd/ddutils/releases).
+
 ## Development
 
-The project runs entirely in Docker. Requires Docker and [Fabric](https://www.fabfile.org/) on the host:
+The project runs entirely in Docker. The tests need no external services. Requires Docker and [Fabric](https://www.fabfile.org/) on the host:
 
 ```bash
 fab build      # build the dev image
@@ -35,6 +40,10 @@ run `uvx copier update` to pull in template updates.
 
 Utilities for inspecting and working with Python type hints and generic types.
 These helpers let you analyze and modify complex annotations at runtime.
+
+They work on classes and parametrized generics (`list[int]`, `Dict[str, int]`, a `NewType`). A union, `Optional`
+included, a `Literal`, a `TypeVar`, `Any` or a string annotation is not a type and raises `TypeError` rather than
+returning `False`; strip the `Optional` with [get_annotation_without_optional](#get_annotation_without_optional) first.
 
 ### get_annotation_origin
 
@@ -89,7 +98,7 @@ is_complex_sequence(dict)  # False
 ### get_complex_sequence_element_annotation
 
 Returns the element type from a sequence annotation.
-Raises `ValueError` if the annotation doesn’t specify an element type.
+Raises `ValueError` if the annotation is not a complex sequence or doesn’t specify an element type.
 
 ```python
 from typing import List, Set
@@ -102,7 +111,8 @@ get_complex_sequence_element_annotation(Set[str])  # <class 'str'>
 
 ### get_dict_items_annotation
 
-Returns the key and value types from a dictionary annotation.
+Returns the key and value types from a dictionary annotation. Raises `TypeError` for an annotation that is not a
+`dict`, `ValueError` for a bare `dict` without arguments.
 
 ```python
 from typing import Dict
@@ -149,7 +159,8 @@ Helper functions for inspecting and extending class-level behavior
 ### classproperty
 
 Works like `@property`, but for class attributes.
-Can be accessed as `ClassName.property_name` without creating an instance.
+Can be accessed as `ClassName.property_name` without creating an instance. Read-only in the sense that there is
+no setter: assigning to the attribute replaces the descriptor on the class.
 
 ```python
 from ddutils.class_helpers import classproperty
@@ -198,7 +209,8 @@ get_origin_class_of_method(B, 'method')  # <class 'A'>
 ### get_generic_base_argument
 
 Returns the type argument a class bound to a generic base when subclassing it. `None` when the base was not
-subscripted, the `TypeVar` itself when the subclass is still generic.
+subscripted, the `TypeVar` itself when the subclass is still generic. `position` picks the argument of a base
+with several type parameters (default `0`).
 
 ```python
 from typing import Generic, TypeVar
@@ -222,9 +234,11 @@ get_generic_base_argument(Repository, Repository)      # None
 
 ### require_class_attribute
 
-Returns a class attribute that subclasses are expected to declare, for `__init_subclass__` checks. A missing,
-`None` or empty value raises `AttributeError`, a value of the wrong type raises `TypeError`; both name the
-attribute and the class, so a misconfigured subclass fails at definition rather than on first use.
+`require_class_attribute(cls, name, expected_type=None, *, allow_empty=False)` returns a class attribute that
+subclasses are expected to declare, for `__init_subclass__` checks. A missing, `None` or empty value raises
+`AttributeError`, a value that is not an instance of `expected_type` (a class or a tuple of classes, skipped when
+`None`) raises `TypeError`; both name the attribute and the class, so a misconfigured subclass fails at definition
+rather than on first use. `allow_empty=True` accepts `''`, `[]` or `{}`; numbers are never empty, `0` passes.
 
 ```python
 from typing import ClassVar
@@ -256,8 +270,10 @@ Tools for creating and modifying Python functions at runtime.
 
 ### create_new_function
 
-Creates a new function from an existing one, with an optional new name. 
-Preserves default values and closures.
+Creates a new function from an existing one, with an optional new name, by rebuilding its code object. It keeps
+the code, globals and positional defaults (`__defaults__`); closure cells are copied as a snapshot of their
+current values, so the copy does not follow later changes to the enclosed variables. Keyword-only defaults,
+annotations, the docstring and `__qualname__` are not carried over.
 
 ```python
 from ddutils.function_helpers import create_new_function
@@ -355,44 +371,37 @@ Utilities for working with dates and times.
 
 ### utc_now
 
-Returns the current datetime in UTC timezone.
+`utc_now() -> datetime`: the current time as an aware `datetime`, `datetime.now(tz=UTC)`.
 
 ## Safe Decorators
 
-Decorators that help functions fail safely and handle exceptions gracefully.
-
 ### safe_call
 
-Wraps a function to catch exceptions and return a default value instead of raising errors.
+Retries a failing call and then falls back to a default or re-raises. The function runs up to `1 + retries`
+times; an attempt fails when it raises one of `exceptions`. Without `default_result` the last error propagates,
+so a `None` result always means the function returned `None`, never that an error was swallowed. Every failure
+that is retried or replaced by the default is logged with its traceback unless `capture_exception=False`.
+Coroutine functions are awaited inside the decorator, so the exceptions raised while awaiting are the ones handled.
 
 ```python
 import requests
+from redis.exceptions import RedisError
 from ddutils.safe_decorators import safe_call
 
 
-@safe_call(default_result=[])
-def fetch_data_from_api():
-    response = requests.get('https://api.example.com/data')
-    return response.json()
+@safe_call(default_result=0)
+def count_pending() -> int:
+    return requests.get('https://api.example.com/pending').json()['count']   # 0 on any error
 
 
-@safe_call(default_result=0, exceptions=(ValueError,))
-def convert_to_int(value):
-    return int(value)
-```
-
-### retry_once_after_exception
-
-Retries a function once if it raises an exception.
-
-```python
-import requests
-from ddutils.safe_decorators import retry_once_after_exception
+@safe_call(retries=1, exceptions=(requests.ConnectionError,))
+def fetch_report(url: str) -> requests.Response:
+    return requests.get(url)   # one more try on a dropped connection, then the error
 
 
-@retry_once_after_exception
-def unstable_network_call():
-    return requests.get('https://api.example.com/unstable')
+@safe_call(default_result=None, exceptions=(RedisError,), capture_exception=False)
+async def get_cached_profile(profile_id: int) -> Profile | None:
+    return await cache.get(profile_id)   # None when Redis is unavailable
 ```
 
 ## Module and Object Management
@@ -401,7 +410,8 @@ Helpers for importing and accessing modules or objects at runtime.
 
 ### get_module
 
-Finds a nested module by path within a parent module.
+Finds a nested module by path within a parent module. Raises `ValueError` when a step of the path is not an
+attribute of the module reached so far.
 
 ```python
 import os
@@ -413,7 +423,8 @@ get_module(os, ['path'])  # <module 'os.path'>
 
 ### get_object_by_path
 
-Imports and returns an object by its full dotted path (e.g. 'json.loads').
+Imports and returns an object by its full dotted path (e.g. 'json.loads'). Returns `None` instead of raising when
+the path is not a string, the module cannot be imported or the attribute does not exist.
 
 ```python
 from ddutils.object_getter import get_object_by_path
@@ -428,12 +439,13 @@ A registry that keeps one object instance per scope and manages its lifetime.
 
 ### ScopedRegistry
 
-Keeps one object per scope. `scope_func` decides what the current scope is and returns its key; `None` means
-"no current scope" and makes every method raise `RuntimeError`.
+`ScopedRegistry(create_func, scope_func, destructor_method_name=None)` keeps one object per scope. `scope_func`
+decides what the current scope is and returns its key; `None` means "no current scope" and makes every method
+raise `RuntimeError`, as does a key that is not hashable. `asyncio.current_task` as the key needs a running loop.
 
 `scope()` is the entry point into a scope: it creates the object on enter and removes it on exit, calling
 the optional destructor exactly once. Nested `scope()` blocks join the existing object and leave it alone.
-Concurrent first accesses with the same key call `create_func` only once.
+Concurrent first accesses with the same key call `create_func` only once; `create_func` may be sync or async.
 
 ```python
 import asyncio
@@ -461,34 +473,48 @@ Lower-level methods are available when a context manager does not fit:
 - `set(**kwargs)` returns the existing object or creates it. Whoever calls it takes over the cleanup that
   `scope()` does on exit and must call `clear()` when the object is no longer needed, if it ever is: a
   per-process client may live until the process ends;
-- `clear()` removes the object of the current scope and calls the destructor.
+- `clear()` removes the object of the current scope and calls the destructor. Without a current scope it raises
+  like every other method, so call it where the scope exists: anywhere for `os.getpid`, inside the task for
+  `asyncio.current_task`, inside the block for a token scope.
 
-#### Scopes kept in a ContextVar
+The `kwargs` of `scope()` and `set()` go to `create_func` only when the object is created; a call that joins an
+existing object ignores them. `destructor_method_name` names a sync or async method of the object; `clear()`
+removes the object from the registry first and then calls it once, and an exception from it propagates.
+`registry` is the plain dict behind it, keyed by scope. One `asyncio.Lock` guards creation for all keys of a
+registry, so a slow `create_func` in one scope delays first accesses in the others.
 
-A `scope_func` that declares a `token` parameter receives a freshly generated token when `scope()` is entered
-and `None` on every other access. This is for a scope of one execution (an HTTP request, an actor run) rather
-than one task: the function stores the token in a `ContextVar`, so coroutines spawned inside the block
-(`gather`, `TaskGroup`, `create_task`) inherit it and share the object with the parent, while outside of
-`scope()` there is no key and every method raises.
+#### process_loop_scope
+
+A ready-made key for clients that are pools bound to their event loop (`redis.asyncio`, `aiokafka`,
+`aerospike_native`): `(os.getpid(), asyncio.get_running_loop())`. A second loop in the same process, a script
+calling `asyncio.run` twice or a test suite, gets its own client instead of an "attached to a different loop"
+error, and the pid guards a forked child, whose inherited sockets must not be reused. Raises `RuntimeError`
+outside of a running loop.
 
 ```python
-from contextvars import ContextVar
+from ddutils.scoped_registry import ScopedRegistry, process_loop_scope
 
-execution_key: ContextVar[str | None] = ContextVar('execution_key', default=None)
+redis_registry = ScopedRegistry(create_func=make_redis_client, scope_func=process_loop_scope, destructor_method_name='aclose')
+```
 
+#### execution_scope
 
-def execution_scope(token: str | None) -> str | None:
-    key = execution_key.get()
-    if key is None and token is not None:  # entering scope() outside of an execution: start one
-        execution_key.set(token)
-        key = token
-    return key
+A `scope_func` that declares a `token` parameter receives a freshly generated token when `scope()` is entered
+or `set()` is called, and `None` on every other access (`get`, `clear`, a nested `scope()`); a scope started by
+`set()` must be ended by `clear()`. This is for a scope of one execution (an HTTP request, an actor run) rather
+than one task: the function stores the token in a `ContextVar`, so coroutines spawned inside the block
+(`gather`, `TaskGroup`, `create_task`) inherit it and share the object with the parent, while outside of
+`scope()` there is no key and every method raises. `execution_scope(name)` is that function, with its own
+`ContextVar` named `name`, so every registry gets a scope of its own:
+
+```python
+from ddutils.scoped_registry import ScopedRegistry, execution_scope
 
 
 async def create_log_properties(**kwargs): ...
 
 
-log_registry = ScopedRegistry(create_func=create_log_properties, scope_func=execution_scope)
+log_registry = ScopedRegistry(create_func=create_log_properties, scope_func=execution_scope('log_properties'))
 
 
 async def middleware(headers):
@@ -517,6 +543,11 @@ per task. The connections module adds two things on top:
 
 Databases with transactions pass their own `connection_manager_class`: a unit of work that begins, commits
 or rolls back and closes the session on exit. It depends on the driver, so it lives in the project.
+
+The factory raises `ValueError` when `default` is not among the registries and `KeyError` for an unknown alias.
+`ConnectionManager` enters with `registry.set()` and no arguments, so the `create_func` of its registries takes
+none (use `functools.partial`). `close()` calls `clear()` on every registry, which needs a current scope: for
+`process_loop_scope` that is inside the loop the clients were opened in, for example FastAPI's lifespan.
 
 ```python
 import os
@@ -557,15 +588,24 @@ await clickhouse.close()
 
 `ddutils.feature_flags` is the storage-agnostic part of feature flags: `FeatureFlagRecord` (on or off, the proportion
 of readers that see it, a free-form payload), the `FeatureFlagStorage` interface and `FeatureFlags`, which reads
-through a storage with a per-process cache (`BASE_TTL` plus a random jitter). While the storage fails, the last
-known record is served and re-read with an exponential backoff from `ERROR_TTL` up to the TTL. The storages live
-with their clients: `ddredis.feature_flags.RedisFeatureFlagStorage`, `ddaerospike.feature_flags.AerospikeFeatureFlagStorage`.
+through a storage with a cache. The storages live with their clients: `ddredis.feature_flags.RedisFeatureFlagStorage`,
+`ddaerospike.feature_flags.AerospikeFeatureFlagStorage`.
 
-Readers see booleans and payloads, not records. `is_enabled` is the flag's switch and its proportion in one answer:
-off for everyone when the flag is off, on for the `proportion` of the readers when it is on, so a kill-switch is a
-flag with proportion 1.0. With an `idempotent_key` (a user id, an account id) the split is repeatable, the same
-user always lands on the same side; without one it is random per call. `get_payload` is the payload as stored; its shape is the application's,
-parse it there.
+`FeatureFlagRecord(enabled=False, proportion=1.0, payload={})` is what a storage holds for one flag; a flag that
+does not exist reads as these defaults. The record validates itself on construction: `enabled` takes a bool or
+what a storage may hold for one (`1`, `'true'`, `'yes'`, `'on'`, `'t'`, `'y'` and their negations), `proportion`
+a number in 0..1, `payload` a mapping, which is copied. `from_dict` builds a record from what a storage read and
+rejects unknown keys; `to_dict` is the inverse.
+
+Readers see booleans and payloads, not records. `is_enabled(name, idempotent_key=None)` is the flag's switch and
+its proportion in one answer: off for everyone when the flag is off, on for the `proportion` of the readers when
+it is on. The proportion applies whenever the flag is on, so a gradual rollout is written with an explicit
+`proportion` and a kill-switch keeps the default. With an `idempotent_key` (anything with a `__str__`: a user id,
+an account id) the split is repeatable, the same key always lands on the same side: the bucket is
+`blake2b(f'{name}:{key}')` scaled to 0..1 and compared with the proportion, so the same key may be on one side for one
+flag and on the other for another. Without a key the split is random per call. `get_payload(name)` is the payload
+as stored, `{}` for a missing flag; its shape is the application's, parse it there and do not mutate it, it is
+the cached object.
 
 ```python
 from ddredis.feature_flags import RedisFeatureFlagStorage
@@ -573,7 +613,7 @@ from ddutils.feature_flags import FeatureFlags
 
 feature_flags = FeatureFlags(RedisFeatureFlagStorage(redis_client_factory))
 
-# a kill-switch: proportion 1.0, on or off for everyone
+# a kill-switch: the default proportion, on or off for everyone
 if await feature_flags.is_enabled('new_checkout'):
     ...
 
@@ -586,11 +626,18 @@ if await feature_flags.is_enabled('email_provider_block'):
     rules = EmailProviderBlockRules.model_validate(await feature_flags.get_payload('email_provider_block'))
 ```
 
-A storage implements `get`, `get_map`, `put` and `delete`; `rename` defaults to
-put-then-delete and is overridden where the storage can do it atomically. `FeatureFlagRecord` validates itself on
-construction; a storage builds it with `from_dict` and, when what it read is not a valid record, logs it and reads
-it as the defaults. A storage failure raises `FeatureFlagStorageError`
-with the cause chained.
+`FeatureFlags(storage, base_ttl=BASE_TTL)` caches every flag it reads for `base_ttl` (15) plus 0 to `JITTER` (5)
+seconds, so the readers of a process do not re-read at once. The cache belongs to the instance: keep one per
+process, and expect a `put` to take up to a TTL to be seen, also from the process that wrote it. While the
+storage fails, the last known record (or the defaults) is served and logged, and the re-read is retried with a
+backoff from `ERROR_TTL` (1 second) doubling on every failure up to `base_ttl`.
+
+A storage is a `FeatureFlagStorage` with `get(name) -> FeatureFlagRecord | None`, `get_map() -> dict[str, FeatureFlagRecord]`,
+`put(name, record) -> None` (create or overwrite; there is no create-only) and `delete(name) -> bool`;
+`rename(old_name, new_name, record)` defaults to put-then-delete and is overridden where the storage can do it
+atomically. A storage builds records with `from_dict` and, when what it read is not a valid record, logs it and
+reads it as the defaults. Only a failure of the storage itself raises, as `FeatureFlagStorageError` with the cause
+chained.
 
 ## Context Helpers
 
@@ -613,8 +660,16 @@ AST-based introspection for extracting exceptions from function source code.
 
 ### extract_function_exceptions
 
-Parses a function’s source code to find all `raise` statements and identify the exception types they use. 
-Returns an iterator of `ExceptionInfo` objects describing each raised exception.
+Parses a function’s source code to find all `raise` statements and identify the exception types they use.
+Returns an iterator of `ExceptionInfo` objects describing each raised exception: `exception_class`, the
+positional `args` and keyword `kwargs` of the `raise` as written, with any non-literal argument replaced by
+`UNDEFINED_VALUE`. `get_kwargs()` maps them onto the parameters of the exception's `__init__`, filling in
+defaults and class attributes; `get_exception_instance(dry_run=True)` builds the exception from them, with
+`'<name>'` for undefined values, and returns `None` instead of raising when `dry_run`.
+
+The function needs its source (`inspect.getsource`), so it does not work on builtins or code without a file.
+A bare `raise` or `raise err` of a caught variable is skipped, an exception class that cannot be resolved by name
+in the function's module or `builtins` is skipped too; `raise self.Error()` is not supported and raises `ValueError`.
 
 ## Value Helpers
 
