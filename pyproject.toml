@@ -7,7 +7,7 @@ license = "MIT"
 license-files = ["LICENSE"]
 readme = "README.md"
 requires-python = ">=3.11,<3.15"
-keywords = ["python", "ddutils", "utils", "helpers", "type annotations", "introspection", "scoped registry", "connection factory", "feature flags", "decorators", "asyncio"]
+keywords = ["python", "ddutils", "utils", "helpers", "type hints", "type annotations", "introspection", "generics", "scoped registry", "context scope", "connection manager", "connection factory", "feature flags", "feature toggle", "retry", "safe call", "decorators", "convertors", "asyncio"]
 # uv_build does not derive these from requires-python (poetry did); PyPI and the pyversions badge read them
 classifiers = [
     "Programming Language :: Python :: 3",

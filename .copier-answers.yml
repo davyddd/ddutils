@@ -5,6 +5,6 @@ copyright_year: 2024
 max_python_version: '3.14'
 min_python_version: '3.11'
 package_description: 'Shared utilities of the dd libraries: annotation and class helpers, convertors, scoped registries, connection factories and feature flags'
-package_keywords: python, ddutils, utils, helpers, type annotations, introspection, scoped registry, connection factory, feature flags, decorators, asyncio
+package_keywords: python, ddutils, utils, helpers, type hints, type annotations, introspection, generics, scoped registry, context scope, connection manager, connection factory, feature flags, feature toggle, retry, safe call, decorators, convertors, asyncio
 package_name: ddutils
 test_matrix: '{}'
