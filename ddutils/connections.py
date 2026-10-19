@@ -1,5 +1,6 @@
-from collections.abc import Callable, Hashable, Mapping
-from typing import Any, Generic, TypeVar
+import inspect
+from collections.abc import Awaitable, Callable, Hashable, Mapping
+from typing import Any, Generic, TypeVar, cast
 
 from ddutils.scoped_registry import ScopedRegistry
 
@@ -78,4 +79,44 @@ class ConnectionManagerFactory(Generic[ConnectionAliasT, ConnectionT, Connection
             await registry.clear()
 
 
-__all__ = ('ConnectionManager', 'ConnectionManagerFactory')
+class ConnectionProxy(Generic[ConnectionT]):
+    """
+    Stands in for a connection in front of code that wants to hold one, typically a third-party library that takes a
+    client at construction and keeps it for the life of the process (a rate limiter's bucket, a lock implementation).
+    Every method call borrows the connection from the factory for that one call and keeps nothing of it, so the
+    factory's manager may hand out and release the connection however it sees fit, like `RedisLock` of ddredis does
+    by hand. A sync method is called inside the borrow as well and its result returned as is.
+
+    Only method calls are proxied. An attribute or property of the connection cannot be reached: attribute access is
+    synchronous and cannot borrow the connection. A sync method whose result stays bound to the connection (a
+    pipeline) is safe only with a manager that releases nothing on exit, such as `ConnectionManager`.
+    """
+
+    def __init__(self, factory: ConnectionManagerFactory[Any, ConnectionT, Any], *, alias: Hashable | None = None) -> None:
+        self._factory = factory
+        self._alias = alias
+
+    def __getattr__(self, name: str) -> Callable[..., Awaitable[Any]]:
+        if name.startswith('_'):  # private and dunder lookups (copy, pickle, repr) are the proxy's own business
+            raise AttributeError(name)
+
+        async def call(*args: Any, **kwargs: Any) -> Any:
+            async with self._factory(alias=self._alias) as connection:
+                result = getattr(connection, name)(*args, **kwargs)
+                return await result if inspect.isawaitable(result) else result
+
+        call.__name__ = name
+        return call
+
+
+def connection_proxy(factory: ConnectionManagerFactory[Any, ConnectionT, Any], *, alias: Hashable | None = None) -> ConnectionT:
+    """
+    A `ConnectionProxy` typed as the connection it stands in for, so it can be passed where the connection's type is
+    expected without a cast at the call site:
+
+        bucket = await RedisBucket.init(rates, redis=connection_proxy(redis_client_factory), bucket_key='api')
+    """
+    return cast('ConnectionT', ConnectionProxy(factory, alias=alias))
+
+
+__all__ = ('ConnectionManager', 'ConnectionManagerFactory', 'ConnectionProxy', 'connection_proxy')

@@ -1,4 +1,4 @@
-# DDUtils
+# ddutils
 
 [![pypi](https://img.shields.io/pypi/v/ddutils.svg)](https://pypi.python.org/pypi/ddutils)
 [![downloads](https://static.pepy.tech/badge/ddutils/month)](https://pepy.tech/project/ddutils)
@@ -6,8 +6,7 @@
 [![codecov](https://codecov.io/gh/davyddd/ddutils/branch/main/graph/badge.svg)](https://app.codecov.io/github/davyddd/ddutils)
 [![license](https://img.shields.io/github/license/davyddd/ddutils.svg)](https://github.com/davyddd/ddutils/blob/main/LICENSE)
 
-**DDUtils** is a lightweight Python library that provides helper functions and decorators for common programming tasks.
-It focuses on type safety, robustness, and runtime introspection — all without external dependencies.
+Shared utilities of the dd libraries: annotation and class helpers, convertors, scoped registries, connection factories and feature flags
 
 ## Installation
 
@@ -16,14 +15,9 @@ Install the library using pip:
 pip install ddutils
 ```
 
-## Compatibility
-
-Python 3.11 to 3.14, no runtime dependencies. What changed in each release, breaking changes included, is in the
-[GitHub releases](https://github.com/davyddd/ddutils/releases).
-
 ## Development
 
-The project runs entirely in Docker. The tests need no external services. Requires Docker and [Fabric](https://www.fabfile.org/) on the host:
+The project runs entirely in Docker. Requires Docker and [Fabric](https://www.fabfile.org/) on the host:
 
 ```bash
 fab build      # build the dev image
@@ -35,6 +29,15 @@ fab bash       # bash inside the container
 
 This project was generated from [dd-lib-stub](https://github.com/davyddd/dd-lib-stub);
 run `uvx copier update` to pull in template updates.
+
+## Compatibility
+
+Python 3.11 to 3.14. What changed in each release, breaking changes included,
+is in the [GitHub releases](https://github.com/davyddd/ddutils/releases).
+
+<!-- The sections below are the library's own; copier update leaves them alone -->
+
+No runtime dependencies. The tests need no external services.
 
 ## Type Annotation Helpers
 
@@ -583,6 +586,24 @@ async with atomic(alias=PostgresDB.REPLICA) as session:
 # on shutdown: closes the clients of every alias that was used in this process
 await clickhouse.close()
 ```
+
+### connection_proxy
+
+Some libraries want a connection object at construction and keep it for the life of the process: a rate limiter's
+bucket, a lock implementation. `connection_proxy(factory, *, alias=None)` returns a `ConnectionProxy` typed as the
+connection it stands in for; every method call borrows the connection from the factory for that one call and keeps
+nothing of it, the way a ddsql adapter or a ddredis lock does by hand. A sync method is called inside the borrow as
+well and its result returned as is.
+
+```python
+from ddutils.connections import connection_proxy
+
+bucket = await RedisBucket.init(rates, redis=connection_proxy(redis_client_factory), bucket_key='api')
+```
+
+Only method calls are proxied: attributes and properties of the connection cannot be reached, since attribute
+access cannot borrow. A sync method whose result stays bound to the connection (a pipeline) is safe only with a
+manager that releases nothing on exit, such as `ConnectionManager`.
 
 ## Feature Flags
 
