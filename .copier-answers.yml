@@ -4,7 +4,7 @@ _src_path: gh:davyddd/dd-lib-stub
 copyright_year: 2024
 max_python_version: '3.14'
 min_python_version: '3.11'
-package_description: Domain Driven Utils Library
-package_keywords: python, ddutils
+package_description: 'Shared utilities of the dd libraries: annotation and class helpers, convertors, scoped registries, connection factories and feature flags'
+package_keywords: python, ddutils, utils, helpers, type annotations, introspection, scoped registry, connection factory, feature flags, decorators, asyncio
 package_name: ddutils
 test_matrix: '{}'

@@ -6,7 +6,7 @@
 [![codecov](https://codecov.io/gh/davyddd/ddutils/branch/main/graph/badge.svg)](https://app.codecov.io/github/davyddd/ddutils)
 [![license](https://img.shields.io/github/license/davyddd/ddutils.svg)](https://github.com/davyddd/ddutils/blob/main/LICENSE)
 
-Domain Driven Utils Library
+Shared utilities of the dd libraries: annotation and class helpers, convertors, scoped registries, connection factories and feature flags
 
 ## Installation
 

@@ -1,13 +1,13 @@
 [project]
 name = "ddutils"
-description = "Domain Driven Utils Library"
+description = "Shared utilities of the dd libraries: annotation and class helpers, convertors, scoped registries, connection factories and feature flags"
 version = "0.4.1"
 authors = [{ name = "davyddd" }]
 license = "MIT"
 license-files = ["LICENSE"]
 readme = "README.md"
 requires-python = ">=3.11,<3.15"
-keywords = ["python", "ddutils"]
+keywords = ["python", "ddutils", "utils", "helpers", "type annotations", "introspection", "scoped registry", "connection factory", "feature flags", "decorators", "asyncio"]
 # uv_build does not derive these from requires-python (poetry did); PyPI and the pyversions badge read them
 classifiers = [
     "Programming Language :: Python :: 3",
